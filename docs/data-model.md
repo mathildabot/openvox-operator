@@ -10,7 +10,7 @@
 |---|---|---|
 | `Environment` | Shared config, CA lifecycle, PuppetDB connection | ConfigMaps, CA Job, CA Secret, CA PVC, CA Service |
 | `Pool` | Owns a K8s Service | Service |
-| `Server` | OpenVox Server Deployment/StatefulSet | Deployment or StatefulSet, HPA |
+| `Server` | OpenVox Server instance pool | StatefulSet (CA) or Deployment (compiler), HPA |
 | `CodeDeploy` | r10k code deployment from Git | PVC, Job, CronJob |
 | `Database` | OpenVoxDB *(future)* | StatefulSet, Service |
 
@@ -181,7 +181,7 @@ status:
 ```
 
 **Creates**:
-- Deployment (when `ca.enabled: false`) or StatefulSet (when `ca.enabled: true`)
+- StatefulSet (when `ca.enabled: true`) or Deployment (when `ca.enabled: false`). CA needs a StatefulSet for its persistent data PVC. Compilers use a Deployment with a shared cert from a Secret.
 - HPA (when `autoscaling.enabled`)
 - InitContainer for SSL bootstrap against CA Service (when `ca.enabled: false`)
 

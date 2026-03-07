@@ -21,10 +21,17 @@ A Kubernetes Operator for running [OpenVox Server](https://github.com/OpenVoxPro
 
 ```mermaid
 graph TD
-    Env["Environment: production"]
-    Env --> CA["Server: ca<br/>CA enabled - 1 replica"]
-    Env --> Stable["Server: stable<br/>v8.8.1 - 3 replicas"]
-    Env --> Canary["Server: canary<br/>v8.9.0 - 3 replicas"]
+    Op["🦊 OpenVox Operator"]
+    Op -->|manages| Env
+
+    Env["📋 Environment CRD<br/>production"]
+    Env --> CA["🔐 Server CRD: ca<br/>CA enabled - 1 replica"]
+    Env --> Stable["⚙️ Server CRD: stable<br/>v8.8.1 - 3 replicas"]
+    Env --> Canary["⚙️ Server CRD: canary<br/>v8.9.0 - 3 replicas"]
+
+    CA --> CA_SS["StatefulSet"]
+    Stable --> ST_D["Deployment"]
+    Canary --> CA_D["Deployment"]
 ```
 
 ## CRD Model
@@ -35,7 +42,7 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 |---|---|---|
 | **`Environment`** | Shared config, CA lifecycle, PuppetDB connection | ConfigMaps, CA Job, CA Secret, CA PVC, CA Service |
 | **`Pool`** | Owns a Kubernetes Service | Service (type, annotations, port) |
-| **`Server`** | OpenVox Server instance pool | Deployment or StatefulSet, HPA |
+| **`Server`** | OpenVox Server instance pool | StatefulSet (CA) or Deployment (compiler), HPA |
 | **`CodeDeploy`** | r10k code deployment from Git | PVC, Job, CronJob |
 | *`Database`* | *OpenVoxDB (future)* | *StatefulSet, Service* |
 
