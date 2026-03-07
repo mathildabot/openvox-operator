@@ -6,32 +6,33 @@ The container images are rootless, built on UBI9 without ezbake, and work with O
 
 ## Architecture
 
-> Full diagram source: [docs/architecture.md](docs/architecture.md) | [draw.io](docs/architecture.drawio)
+> Detailed diagrams: [docs/architecture.md](docs/architecture.md) | [draw.io](docs/architecture.drawio)
 
 ```mermaid
-graph TB
-    subgraph cluster["Kubernetes Cluster"]
-        CRD["OpenVoxServer CRD"] -->|watches| Controller["Operator Controller"]
+graph LR
+    Operator[Operator]
 
-        Controller -->|generates| CM["ConfigMaps<br/><small>puppet.conf, puppetdb.conf,<br/>webserver.conf</small>"]
-        Controller -->|creates| CASetup["CA Setup Job<br/><small>puppetserver ca setup</small>"]
-        Controller -->|manages| CAStatefulSet["CA Server — StatefulSet<br/><small>replicas: 1, PVC</small>"]
-        Controller -->|manages| CompilerDeploy["Compilers — Deployment<br/><small>replicas: 1-N</small>"]
+    Operator -->|manages| CA
+    Operator -->|manages| Compiler1
+    Operator -->|manages| CompilerN
 
-        CASetup -->|stores certs| CASecret["CA Secret"]
-        CASecret -->|mounts| CAStatefulSet
-        CASecret -->|mounts| CompilerDeploy
-        CM -->|mounts| CAStatefulSet
-        CM -->|mounts| CompilerDeploy
-
-        CAStatefulSet -->|exposes| CASvc["Service: puppet-ca :8140"]
-        CompilerDeploy -->|ssl bootstrap| CASvc
-        CompilerDeploy -->|exposes| CompilerSvc["Service: puppet :8140"]
+    subgraph puppetservers [" "]
+        CA["Puppetserver<br/><b>CA Role</b><br/><small>StatefulSet · replicas: 1</small>"]
+        Compiler1["Puppetserver<br/><b>Compiler</b><br/><small>Deployment · replica 1</small>"]
+        CompilerN["Puppetserver<br/><b>Compiler</b><br/><small>Deployment · replica N</small>"]
     end
 
-    Agents["External Agents"] -->|connect| CompilerSvc
-    CompilerDeploy -->|reports| PuppetDB["PuppetDB<br/><small>user-provided</small>"]
+    Compiler1 -->|sign certs| CA
+    CompilerN -->|sign certs| CA
+
+    Agents["Puppet Agents"] -->|catalog + report| Compiler1
+    Agents -->|catalog + report| CompilerN
+
+    Compiler1 -->|store| PuppetDB[(PuppetDB)]
+    CompilerN -->|store| PuppetDB
 ```
+
+All Puppetserver instances use the **same container image**. The Operator assigns the role (CA or Compiler) via ConfigMap and service configuration. The CA runs as a StatefulSet (exactly 1 replica with persistent storage), compilers run as a scalable Deployment.
 
 ### Design Principles
 
