@@ -25,9 +25,9 @@ graph TD
     Op -->|manages| Env
 
     Env["📋 Environment CRD<br/>production"]
-    Env --> CA["🔐 Server CRD: ca<br/>CA enabled - 1 replica"]
-    Env --> Stable["⚙️ Server CRD: stable<br/>v8.8.1 - 3 replicas"]
-    Env --> Canary["⚙️ Server CRD: canary<br/>v8.9.0 - 3 replicas"]
+    Env --> CA["🔐 Server CRD: ca<br/>role: ca - 1 replica"]
+    Env --> Stable["⚙️ Server CRD: stable<br/>role: compiler - v8.8.1 - 3 replicas"]
+    Env --> Canary["⚙️ Server CRD: canary<br/>role: compiler - v8.9.0 - 3 replicas"]
 
     CA --> CA_D["Deployment (Recreate)"]
     Stable --> ST_D["Deployment (RollingUpdate)"]
