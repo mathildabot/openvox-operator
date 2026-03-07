@@ -45,7 +45,7 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 
 | Kind | Purpose | Creates |
 |---|---|---|
-| **`Environment`** | Shared config, CA lifecycle, PuppetDB connection | ConfigMaps, CA Job, CA Secret, CA PVC, CA Service |
+| **`Environment`** | Shared config, CA lifecycle, OpenVoxDB connection | ConfigMaps, CA Job, CA Secret, CA PVC, CA Service |
 | **`Pool`** | Owns a Kubernetes Service | Service (type, annotations, port) |
 | **`Server`** | OpenVox Server instance pool | Deployment, HPA |
 | **`CodeDeploy`** | r10k code deployment from Git | PVC, Job, CronJob |

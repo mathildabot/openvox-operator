@@ -1,0 +1,12 @@
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: Server
+metadata:
+  name: ca
+  namespace: openvox
+spec:
+  environmentRef: production
+  ca:
+    enabled: true
+  replicas: 1
+  javaArgs: "-Xms512m -Xmx1024m"

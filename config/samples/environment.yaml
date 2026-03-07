@@ -1,0 +1,27 @@
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: Environment
+metadata:
+  name: production
+  namespace: openvox
+spec:
+  image:
+    repository: ghcr.io/slauger/openvoxserver
+    tag: "8.12.1"
+  ca:
+    certname: puppet
+    dnsAltNames:
+      - puppet
+      - puppet-ca
+      - puppet-ca.openvox.svc
+    autosign: "true"
+    storage:
+      size: 1Gi
+  puppetdb:
+    serverUrls:
+      - https://openvoxdb:8081
+  puppet:
+    environmentTimeout: unlimited
+    storeconfigs: true
+    storeBackend: puppetdb
+    reports: puppetdb

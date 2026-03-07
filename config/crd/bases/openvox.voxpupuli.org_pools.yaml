@@ -1,0 +1,100 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: pools.openvox.voxpupuli.org
+spec:
+  group: openvox.voxpupuli.org
+  names:
+    kind: Pool
+    listKind: PoolList
+    plural: pools
+    singular: pool
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.environmentRef
+      name: Environment
+      type: string
+    - jsonPath: .spec.service.type
+      name: Type
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Pool is the Schema for the pools API.
+          It owns a Kubernetes Service that selects Server Pods referencing this Pool.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PoolSpec defines the desired state of Pool.
+            properties:
+              environmentRef:
+                description: EnvironmentRef references the Environment this Pool belongs
+                  to.
+                type: string
+              service:
+                description: Service defines the Kubernetes Service configuration.
+                properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    description: Annotations are additional annotations for the Service.
+                    type: object
+                  labels:
+                    additionalProperties:
+                      type: string
+                    description: Labels are additional labels for the Service.
+                    type: object
+                  port:
+                    default: 8140
+                    description: Port is the Service port.
+                    format: int32
+                    type: integer
+                  type:
+                    default: ClusterIP
+                    description: Type is the Service type (ClusterIP, LoadBalancer,
+                      NodePort).
+                    type: string
+                type: object
+            required:
+            - environmentRef
+            type: object
+          status:
+            description: PoolStatus defines the observed state of Pool.
+            properties:
+              endpoints:
+                description: Endpoints is the number of Pods behind the Service.
+                format: int32
+                type: integer
+              serviceName:
+                description: ServiceName is the name of the created Kubernetes Service.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

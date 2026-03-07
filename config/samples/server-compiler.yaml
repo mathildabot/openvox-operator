@@ -1,0 +1,12 @@
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: Server
+metadata:
+  name: stable
+  namespace: openvox
+spec:
+  environmentRef: production
+  poolRef: puppet
+  replicas: 2
+  maxActiveInstances: 2
+  javaArgs: "-Xms512m -Xmx1024m"

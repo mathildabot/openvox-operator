@@ -1,0 +1,11 @@
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: Pool
+metadata:
+  name: puppet
+  namespace: openvox
+spec:
+  environmentRef: production
+  service:
+    type: ClusterIP
+    port: 8140

@@ -53,11 +53,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.OpenVoxServerReconciler{
+	if err = (&controller.EnvironmentReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "OpenVoxServer")
+		setupLog.Error(err, "unable to create controller", "controller", "Environment")
+		os.Exit(1)
+	}
+
+	if err = (&controller.PoolReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Pool")
+		os.Exit(1)
+	}
+
+	if err = (&controller.ServerReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Server")
 		os.Exit(1)
 	}
 

@@ -1,0 +1,34 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "openvox-operator.fullname" . }}
+  labels:
+    {{- include "openvox-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["openvox.voxpupuli.org"]
+    resources: ["environments", "pools", "servers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["openvox.voxpupuli.org"]
+    resources: ["environments/status", "pools/status", "servers/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["openvox.voxpupuli.org"]
+    resources: ["environments/finalizers", "pools/finalizers", "servers/finalizers"]
+    verbs: ["update"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets", "services", "persistentvolumeclaims", "endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
