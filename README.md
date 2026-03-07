@@ -32,6 +32,10 @@ graph TD
     CA --> CA_D["Deployment (Recreate)"]
     Stable --> ST_D["Deployment (RollingUpdate)"]
     Canary --> CA_D2["Deployment (RollingUpdate)"]
+
+    CA_D -->|mounts| CA_PVC["💾 CA Data PVC"]
+    ST_D -->|mounts| Code_PVC["📦 Code PVC (RWX)"]
+    CA_D2 -->|mounts| Code_PVC
 ```
 
 ## CRD Model
