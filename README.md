@@ -25,18 +25,26 @@ graph TD
     Op -->|manages| Env
 
     Env["📋 Environment CRD<br/>production"]
-    Env --> CA["🔐 Server CRD: ca<br/>role: ca + compiler - 1 replica"]
-    Env --> Stable["⚙️ Server CRD: stable<br/>role: compiler - v8.8.1 - 3 replicas"]
-    Env --> Canary["⚙️ Server CRD: canary<br/>role: compiler - v8.9.0 - 3 replicas"]
+    Env --> CA["🔐 Server CRD: ca<br/>role: ca + compiler"]
+    Env --> Stable["⚙️ Server CRD: stable<br/>role: compiler - v8.8.1"]
+    Env --> Canary["⚙️ Server CRD: canary<br/>role: compiler - v8.9.0"]
 
-    CA --> CA_D["Deployment (Recreate)"]
-    Stable --> ST_D["Deployment (RollingUpdate)"]
-    Canary --> CA_D2["Deployment (RollingUpdate)"]
+    CA --> CA_P["Pod ca-0"]
+    Stable --> ST_P1["Pod stable-0"]
+    Stable --> ST_P2["Pod stable-1"]
+    Stable --> ST_P3["Pod stable-2"]
+    Canary --> CA_P2["Pod canary-0"]
+    Canary --> CA_P3["Pod canary-1"]
+    Canary --> CA_P4["Pod canary-2"]
 
-    CA_D -->|mounts| CA_PVC["💾 CA Data PVC"]
-    CA_D -->|mounts| Code_PVC
-    ST_D -->|mounts| Code_PVC["📦 Code PVC (RWX)"]
-    CA_D2 -->|mounts| Code_PVC
+    CA_P -->|mounts| CA_PVC["💾 CA Data PVC"]
+    CA_P -->|mounts| Code_PVC
+    ST_P1 -->|mounts| Code_PVC["📦 Code PVC (RWX)"]
+    ST_P2 -->|mounts| Code_PVC
+    ST_P3 -->|mounts| Code_PVC
+    CA_P2 -->|mounts| Code_PVC
+    CA_P3 -->|mounts| Code_PVC
+    CA_P4 -->|mounts| Code_PVC
 ```
 
 ## CRD Model
