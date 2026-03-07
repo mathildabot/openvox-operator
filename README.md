@@ -25,7 +25,7 @@ graph TD
     Op -->|manages| Env
 
     Env["📋 Environment CRD<br/>production"]
-    Env --> CA["🔐 Server CRD: ca<br/>role: ca - 1 replica"]
+    Env --> CA["🔐 Server CRD: ca<br/>role: ca + compiler - 1 replica"]
     Env --> Stable["⚙️ Server CRD: stable<br/>role: compiler - v8.8.1 - 3 replicas"]
     Env --> Canary["⚙️ Server CRD: canary<br/>role: compiler - v8.9.0 - 3 replicas"]
 
@@ -34,6 +34,7 @@ graph TD
     Canary --> CA_D2["Deployment (RollingUpdate)"]
 
     CA_D -->|mounts| CA_PVC["💾 CA Data PVC"]
+    CA_D -->|mounts| Code_PVC
     ST_D -->|mounts| Code_PVC["📦 Code PVC (RWX)"]
     CA_D2 -->|mounts| Code_PVC
 ```
