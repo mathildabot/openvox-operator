@@ -236,7 +236,7 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 	}
 
 	container := corev1.Container{
-		Name:  "openvoxserver",
+		Name:  "openvox-server",
 		Image: image,
 		Env: []corev1.EnvVar{
 			{Name: "JAVA_ARGS", Value: javaArgs},

@@ -140,7 +140,7 @@ spec:
                       x-kubernetes-map-type: atomic
                     type: array
                   repository:
-                    default: ghcr.io/slauger/openvoxserver
+                    default: ghcr.io/slauger/openvox-server
                     description: Repository is the container image repository.
                     type: string
                   tag:

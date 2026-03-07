@@ -6,7 +6,7 @@ metadata:
   namespace: openvox
 spec:
   image:
-    repository: ghcr.io/slauger/openvoxserver
+    repository: ghcr.io/slauger/openvox-server
     tag: "8.12.1"
   ca:
     certname: puppet

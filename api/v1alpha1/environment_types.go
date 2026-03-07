@@ -94,7 +94,7 @@ const (
 // ImageSpec defines the container image reference.
 type ImageSpec struct {
 	// Repository is the container image repository.
-	// +kubebuilder:default="ghcr.io/slauger/openvoxserver"
+	// +kubebuilder:default="ghcr.io/slauger/openvox-server"
 	Repository string `json:"repository,omitempty"`
 
 	// Tag is the container image tag.

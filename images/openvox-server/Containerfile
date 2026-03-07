@@ -15,7 +15,7 @@ FROM registry.access.redhat.com/ubi9/ubi AS base
 
 ARG JDK_VERSION=17
 
-RUN dnf install -y --setopt=install_weak_deps=False \
+RUN dnf install -y --allowerasing --setopt=install_weak_deps=False \
         java-${JDK_VERSION}-openjdk-headless \
         bash \
         curl \
@@ -130,7 +130,14 @@ RUN tar -xzf /openvox-server-${OPENVOXSERVER_VERSION}.tar.gz \
     && rm -rf /openvox-server-*.tar.gz /openvoxdb-*.tar.gz /puppetserver-* /puppetdb-*
 
 # Install openvox (puppet) into JRuby — needed at runtime for catalog compilation
-RUN puppetserver gem install --no-document openvox -v "${OPENVOX_VERSION}"
+ENV PATH=$PATH:/opt/puppetlabs/server/bin:/opt/puppetlabs/puppet/bin:/opt/puppetlabs/bin
+RUN printf '%s\n' \
+        'JAVA_BIN="/usr/bin/java"' \
+        'JAVA_ARGS="-Xms512m -Xmx512m"' \
+        'INSTALL_DIR="/opt/puppetlabs/server/apps/puppetserver"' \
+        'CONFIG="/etc/puppetlabs/puppetserver/conf.d"' \
+        > /etc/sysconfig/puppetserver \
+    && puppetserver gem install --no-document openvox -v "${OPENVOX_VERSION}"
 
 # Patch openvoxserver-ca to skip cadir symlink and chown (fails rootless)
 RUN find / -path '*/openvoxserver-ca-*/lib/puppetserver/ca/action/setup.rb' \
