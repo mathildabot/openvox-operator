@@ -163,10 +163,41 @@ Ein einmaliger Job der `puppetserver ca setup` ausführt und die CA-Zertifikate 
 
 ### 5. Code Sync (r10k)
 
-- **initContainer** auf jedem Compiler-Pod: `r10k deploy environment`
-- **Optional CronJob**: periodisches Code-Update
+- **r10k Job/CronJob**: Ein einzelner Job der `r10k deploy environment` auf das Code-PVC schreibt
 - **Separates Image**: nur Ruby + r10k, kein puppetserver
-- Code-PVC: ReadWriteMany wenn mehrere Compiler
+- Alle Compiler mounten dasselbe Code-PVC read-only
+
+#### Code Volume Strategie
+
+**Default: RWO PVC + Pod-Affinity**
+
+RWO (ReadWriteOnce) erlaubt mehrere Pods auf **demselben Node** gleichzeitig. Der Operator setzt Pod-Affinity so dass r10k Job und Compiler-Pods auf dem gleichen Node laufen. Das funktioniert ohne speziellen Storage-Provider.
+
+```
+Node A:
+  ├── r10k Job      ─── mount RWO PVC (read-write)
+  ├── Compiler Pod 1 ── mount RWO PVC (read-only)
+  └── Compiler Pod 2 ── mount RWO PVC (read-only)
+```
+
+**Multi-Node: RWX PVC**
+
+Sobald Compiler über mehrere Nodes verteilt werden (Anti-Affinity, Node-Failure, große Cluster), braucht man RWX (ReadWriteMany). Der Operator erkennt das automatisch wenn `compilers.replicas > 1` und kein Pod-Affinity-Override gesetzt ist.
+
+| Setup | Access Mode | Voraussetzung |
+|-------|-------------|---------------|
+| Single-Node (Default) | RWO | Keine — jeder Storage-Provider |
+| Multi-Node | RWX | NFS, CephFS, EFS, Longhorn, etc. |
+
+Die `spec.code.volume` Konfiguration im CRD:
+
+```yaml
+code:
+  volume:
+    size: 5Gi
+    accessMode: ReadWriteOnce    # oder ReadWriteMany
+    # existingClaim: ""          # Alternativ: vorhandenes PVC nutzen
+```
 
 ## cert-manager Integration
 

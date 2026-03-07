@@ -269,6 +269,14 @@ type CodeVolumeSpec struct {
 	// +kubebuilder:default="5Gi"
 	// +optional
 	Size string `json:"size,omitempty"`
+
+	// AccessMode is the PVC access mode. Use ReadWriteOnce (default) for
+	// single-node setups where r10k and compilers share the same node via
+	// pod affinity. Use ReadWriteMany for multi-node setups.
+	// +kubebuilder:default="ReadWriteOnce"
+	// +kubebuilder:validation:Enum=ReadWriteOnce;ReadWriteMany
+	// +optional
+	AccessMode string `json:"accessMode,omitempty"`
 }
 
 // OpenVoxServerPhase represents the current lifecycle phase.
