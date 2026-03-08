@@ -14,14 +14,11 @@ import (
 	"os"
 )
 
-func main() {
-	configPath := flag.String("config", "", "Path to autosign policy YAML config")
-	flag.Parse()
+const defaultConfigPath = "/etc/puppetlabs/puppet/autosign-policy.yaml"
 
-	if *configPath == "" {
-		fmt.Fprintln(os.Stderr, "error: --config flag is required")
-		os.Exit(1)
-	}
+func main() {
+	configPath := flag.String("config", defaultConfigPath, "Path to autosign policy YAML config")
+	flag.Parse()
 
 	args := flag.Args()
 	if len(args) < 1 {

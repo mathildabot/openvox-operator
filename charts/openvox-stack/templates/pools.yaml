@@ -1,14 +1,14 @@
-{{- range $key, $val := .Values.servers }}
+{{- range $entry := .Values.servers }}
 ---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: Pool
 metadata:
-  name: {{ include "openvox-stack.poolName" (dict "root" $ "key" $key "val" $val) }}
+  name: {{ include "openvox-stack.poolName" (dict "root" $ "entry" $entry) }}
 spec:
   environmentRef: {{ include "openvox-stack.envName" $ }}
   selector:
-    openvox.voxpupuli.org/server: {{ include "openvox-stack.serverName" (dict "root" $ "key" $key) }}
+    openvox.voxpupuli.org/server: {{ include "openvox-stack.serverName" (dict "root" $ "entry" $entry) }}
   service:
-    type: {{ $val.pool.service.type | default "ClusterIP" }}
-    port: {{ $val.pool.service.port | default 8140 }}
+    type: {{ (dig "pool" "service" "type" "ClusterIP" $entry) }}
+    port: {{ (dig "pool" "service" "port" 8140 $entry) }}
 {{- end }}

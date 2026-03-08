@@ -37,32 +37,32 @@ SigningPolicy name.
 
 {{/*
 Server name for a server entry — prefixed with fullname.
-Usage: include "openvox-stack.serverName" (dict "root" $ "key" $key)
+Usage: include "openvox-stack.serverName" (dict "root" $ "entry" $entry)
 */}}
 {{- define "openvox-stack.serverName" -}}
-{{- printf "%s-%s" (include "openvox-stack.fullname" .root) .key | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" (include "openvox-stack.fullname" .root) .entry.name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Certificate name for a server entry.
-Usage: include "openvox-stack.certName" (dict "root" $ "key" $key "val" $val)
+Usage: include "openvox-stack.certName" (dict "root" $ "entry" $entry)
 */}}
 {{- define "openvox-stack.certName" -}}
-{{- if .val.certificate.name -}}
-{{- .val.certificate.name }}
+{{- if .entry.certificate.name -}}
+{{- .entry.certificate.name }}
 {{- else -}}
-{{- printf "%s-%s" (include "openvox-stack.fullname" .root) .key | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" (include "openvox-stack.fullname" .root) .entry.name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 
 {{/*
 Pool name for a server entry.
-Usage: include "openvox-stack.poolName" (dict "root" $ "key" $key "val" $val)
+Usage: include "openvox-stack.poolName" (dict "root" $ "entry" $entry)
 */}}
 {{- define "openvox-stack.poolName" -}}
-{{- if .val.pool.name -}}
-{{- .val.pool.name }}
+{{- if and .entry.pool .entry.pool.name -}}
+{{- .entry.pool.name }}
 {{- else -}}
-{{- printf "%s-%s" (include "openvox-stack.fullname" .root) .key | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-%s" (include "openvox-stack.fullname" .root) .entry.name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}

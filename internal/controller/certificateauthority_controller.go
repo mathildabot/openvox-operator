@@ -302,6 +302,35 @@ func (r *CertificateAuthorityReconciler) findCertificatesForCA(ctx context.Conte
 	return result, nil
 }
 
+// findCAServerCert finds the Certificate belonging to the Server with ca:true.
+// This is the cert that should be signed during CA setup.
+func (r *CertificateAuthorityReconciler) findCAServerCert(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, certs []openvoxv1alpha1.Certificate) *openvoxv1alpha1.Certificate {
+	serverList := &openvoxv1alpha1.ServerList{}
+	if err := r.List(ctx, serverList, client.InNamespace(ca.Namespace)); err != nil {
+		return nil
+	}
+
+	// Find servers with ca:true in the same environment and collect their certificateRef names
+	caServerCertRefs := map[string]bool{}
+	for _, server := range serverList.Items {
+		if server.Spec.EnvironmentRef == ca.Spec.EnvironmentRef && server.Spec.CA {
+			caServerCertRefs[server.Spec.CertificateRef] = true
+		}
+	}
+
+	for i := range certs {
+		if caServerCertRefs[certs[i].Name] {
+			return &certs[i]
+		}
+	}
+
+	// Fallback: return first cert if no CA server found
+	if len(certs) > 0 {
+		return &certs[0]
+	}
+	return nil
+}
+
 // --- RBAC for CA setup job ---
 
 func (r *CertificateAuthorityReconciler) reconcileCASetupRBAC(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, certs []openvoxv1alpha1.Certificate) error {
@@ -450,12 +479,12 @@ func (r *CertificateAuthorityReconciler) reconcileCASetupJob(ctx context.Context
 	_ = r.Status().Update(ctx, ca)
 
 	jobName := fmt.Sprintf("%s-ca-setup", ca.Name)
-	job := r.buildCASetupJob(ca, env, jobName, certs)
+	job := r.buildCASetupJob(ctx, ca, env, jobName, certs)
 
 	return r.reconcileJob(ctx, ca, jobName, job, caSecretName)
 }
 
-func (r *CertificateAuthorityReconciler) buildCASetupJob(ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment, jobName string, certs []openvoxv1alpha1.Certificate) *batchv1.Job {
+func (r *CertificateAuthorityReconciler) buildCASetupJob(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment, jobName string, certs []openvoxv1alpha1.Certificate) *batchv1.Job {
 	image := fmt.Sprintf("%s:%s", env.Spec.Image.Repository, env.Spec.Image.Tag)
 	backoffLimit := int32(3)
 	saName := fmt.Sprintf("%s-ca-setup", ca.Name)
@@ -463,20 +492,20 @@ func (r *CertificateAuthorityReconciler) buildCASetupJob(ca *openvoxv1alpha1.Cer
 	labels := environmentLabels(ca.Spec.EnvironmentRef)
 	labels["openvox.voxpupuli.org/certificateauthority"] = ca.Name
 
-	// Use the first Certificate's certname and SANs for the initial CA setup cert.
-	// If no Certificate exists yet, the CA setup will only create the CA.
+	// Find the CA server's Certificate for the initial setup cert.
+	// The CA setup job signs one cert during `puppetserver ca setup`.
+	// We must pick the cert belonging to the Server with ca:true.
 	certname := "puppet"
 	dnsAltNames := ""
 	tlsSecretName := ""
 	certResourceName := ""
-	if len(certs) > 0 {
-		cert := certs[0]
-		if cert.Spec.Certname != "" {
-			certname = cert.Spec.Certname
+	if caCert := r.findCAServerCert(ctx, ca, certs); caCert != nil {
+		if caCert.Spec.Certname != "" {
+			certname = caCert.Spec.Certname
 		}
-		dnsAltNames = strings.Join(cert.Spec.DNSAltNames, ",")
-		tlsSecretName = fmt.Sprintf("%s-tls", cert.Name)
-		certResourceName = cert.Name
+		dnsAltNames = strings.Join(caCert.Spec.DNSAltNames, ",")
+		tlsSecretName = fmt.Sprintf("%s-tls", caCert.Name)
+		certResourceName = caCert.Name
 	}
 
 	script := buildCAOnlySetupScript()

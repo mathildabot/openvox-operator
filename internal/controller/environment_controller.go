@@ -213,7 +213,7 @@ func (r *EnvironmentReconciler) renderPuppetConf(ctx context.Context, env *openv
 		// Secret (mounted by the server controller) and decides sign/deny.
 		// This keeps puppet.conf static — policy changes only update the Secret,
 		// which kubelet syncs without a pod restart.
-		fmt.Fprintf(&sb, "autosign = %s --config %s\n", autosignBinaryPath, autosignPolicyPath)
+		fmt.Fprintf(&sb, "autosign = %s\n", autosignBinaryPath)
 	}
 
 	for k, v := range env.Spec.Puppet.ExtraConfig {

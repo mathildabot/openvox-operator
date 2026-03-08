@@ -107,6 +107,8 @@ func (r *CertificateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // reconcileCertSigning signs a certificate directly via the Puppet CA HTTP API.
+// This is non-blocking: it submits the CSR, checks once for the signed cert,
+// and returns RequeueAfter if the cert isn't signed yet.
 func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *openvoxv1alpha1.Certificate, ca *openvoxv1alpha1.CertificateAuthority) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -119,7 +121,7 @@ func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *
 	cert.Status.Phase = openvoxv1alpha1.CertificatePhaseRequesting
 	_ = r.Status().Update(ctx, cert)
 
-	certPEM, keyPEM, err := r.signCertificate(ctx, cert, caServiceName, cert.Namespace)
+	result, err := r.signCertificate(ctx, cert, ca, caServiceName, cert.Namespace)
 	if err != nil {
 		logger.Error(err, "certificate signing failed")
 		cert.Status.Phase = openvoxv1alpha1.CertificatePhaseError
@@ -131,16 +133,19 @@ func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *
 			LastTransitionTime: metav1.Now(),
 		})
 		_ = r.Status().Update(ctx, cert)
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		if result.RequeueAfter > 0 {
+			return result, nil
+		}
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 	}
 
-	// Create TLS Secret
-	tlsSecretName := fmt.Sprintf("%s-tls", cert.Name)
-	if err := r.createOrUpdateTLSSecret(ctx, cert, ca, tlsSecretName, certPEM, keyPEM); err != nil {
-		return ctrl.Result{}, fmt.Errorf("creating TLS Secret: %w", err)
+	if result.RequeueAfter > 0 {
+		// Still waiting for cert to be signed
+		return result, nil
 	}
 
 	// Mark as signed
+	tlsSecretName := fmt.Sprintf("%s-tls", cert.Name)
 	cert.Status.Phase = openvoxv1alpha1.CertificatePhaseSigned
 	cert.Status.SecretName = tlsSecretName
 	meta.SetStatusCondition(&cert.Status.Conditions, metav1.Condition{

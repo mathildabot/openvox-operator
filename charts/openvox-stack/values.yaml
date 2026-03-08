@@ -6,7 +6,7 @@ environment:
   image:
     repository: ghcr.io/slauger/openvox-server
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   puppetdb:
     serverUrls: []
   puppet:
@@ -27,7 +27,7 @@ signingPolicy:
   any: true
 
 servers:
-  puppet:
+  - name: puppet
     ca: true
     server: true
     certificate:
@@ -41,7 +41,7 @@ servers:
       limits:
         memory: 2Gi
     pool:
-      name: ""         # default: {fullname}-{key}
+      name: ""         # default: {fullname}-{name}
       service:
         type: ClusterIP
         port: 8140
