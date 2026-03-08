@@ -27,7 +27,7 @@ signingPolicy:
   any: true
 
 servers:
-  - name: puppet
+  - name: ca
     ca: true
     server: true
     certificate:
@@ -40,8 +40,15 @@ servers:
         memory: 1Gi
       limits:
         memory: 2Gi
-    pool:
-      name: ""         # default: {fullname}-{name}
-      service:
-        type: ClusterIP
-        port: 8140
+
+pools:
+  - name: ca
+    serverRef: ca
+    service:
+      type: ClusterIP
+      port: 8140
+  - name: server
+    serverRef: ca
+    service:
+      type: ClusterIP
+      port: 8140

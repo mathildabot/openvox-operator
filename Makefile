@@ -68,19 +68,24 @@ local-deploy: local-build install ## Build images, install CRDs, and deploy oper
 		--namespace $(NAMESPACE) --create-namespace \
 		--set image.repository=openvox-operator \
 		--set image.tag=$(LOCAL_TAG) \
-		--set image.pullPolicy=Never
+		--set image.pullPolicy=Never \
+		--set podAnnotations.imageId=$$($(CONTAINER_TOOL) image inspect openvox-operator:$(LOCAL_TAG) --format '{{.Id}}')
 	@echo ""
 	@echo "Operator deployed with openvox-operator:$(LOCAL_TAG)"
-	@echo "Use this tag in your Environment CR:"
-	@echo "  image:"
-	@echo "    repository: openvox-server"
-	@echo "    tag: '$(LOCAL_TAG)'"
-	@echo "    pullPolicy: Never"
 
-.PHONY: local-reload
-local-reload: local-build install ## Rebuild images, update CRDs, and restart operator with new tag.
-	kubectl set image deployment/openvox-operator -n $(NAMESPACE) manager=openvox-operator:$(LOCAL_TAG)
-	@echo "Operator updated to openvox-operator:$(LOCAL_TAG)"
+STACK_NAMESPACE ?= openvox
+STACK_VALUES ?= charts/openvox-stack/ci/single-node-values.yaml
+
+.PHONY: local-stack
+local-stack: ## Deploy openvox-stack via Helm with local images.
+	helm upgrade --install openvox-stack charts/openvox-stack \
+		--namespace $(STACK_NAMESPACE) --create-namespace \
+		--values $(STACK_VALUES) \
+		--set environment.image.repository=openvox-server \
+		--set environment.image.tag=$(LOCAL_TAG) \
+		--set environment.image.pullPolicy=Never
+	@echo ""
+	@echo "Stack deployed with openvox-server:$(LOCAL_TAG) in $(STACK_NAMESPACE) using $(STACK_VALUES)"
 
 ##@ Deployment
 

@@ -56,12 +56,12 @@ Usage: include "openvox-stack.certName" (dict "root" $ "entry" $entry)
 {{- end }}
 
 {{/*
-Pool name for a server entry.
+Pool name for a pool entry.
 Usage: include "openvox-stack.poolName" (dict "root" $ "entry" $entry)
 */}}
 {{- define "openvox-stack.poolName" -}}
-{{- if and .entry.pool .entry.pool.name -}}
-{{- .entry.pool.name }}
+{{- if .entry.fullName -}}
+{{- .entry.fullName }}
 {{- else -}}
 {{- printf "%s-%s" (include "openvox-stack.fullname" .root) .entry.name | trunc 63 | trimSuffix "-" }}
 {{- end }}

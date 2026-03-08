@@ -68,8 +68,8 @@ func (r *CertificateAuthorityReconciler) Reconcile(ctx context.Context, req ctrl
 	env := &openvoxv1alpha1.Environment{}
 	if err := r.Get(ctx, types.NamespacedName{Name: ca.Spec.EnvironmentRef, Namespace: ca.Namespace}, env); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Error(err, "referenced Environment not found", "environmentRef", ca.Spec.EnvironmentRef)
-			return ctrl.Result{}, nil
+			logger.Info("waiting for Environment to be created", "environmentRef", ca.Spec.EnvironmentRef)
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 		return ctrl.Result{}, err
 	}

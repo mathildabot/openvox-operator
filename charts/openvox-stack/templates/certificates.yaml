@@ -8,9 +8,9 @@ spec:
   authorityRef: {{ include "openvox-stack.caName" $ }}
   certname: {{ $entry.certificate.certname }}
   dnsAltNames:
-    {{- $poolName := include "openvox-stack.poolName" (dict "root" $ "entry" $entry) }}
-    {{- $autoNames := list $poolName }}
-    {{- if ne $poolName "puppet" }}
+    {{- $serverName := include "openvox-stack.serverName" (dict "root" $ "entry" $entry) }}
+    {{- $autoNames := list $serverName }}
+    {{- if ne $serverName "puppet" }}
     {{- $autoNames = append $autoNames "puppet" }}
     {{- end }}
     {{- $allNames := concat $autoNames ($entry.certificate.dnsAltNames | default list) | uniq }}

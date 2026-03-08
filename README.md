@@ -140,6 +140,33 @@ helm install production \
 
 This creates a single CA+Server with autosign enabled.
 
+## Local Development
+
+Build all container images locally and deploy the operator to Docker Desktop Kubernetes:
+
+```bash
+make local-deploy
+```
+
+Deploy the openvox-stack (single-node by default):
+
+```bash
+make local-stack
+```
+
+Override the image tag or use a different scenario:
+
+```bash
+make local-deploy LOCAL_TAG=my-feature
+make local-stack LOCAL_TAG=my-feature STACK_VALUES=charts/openvox-stack/ci/multi-server-values.yaml
+```
+
+| Target | Description |
+|---|---|
+| `local-build` | Build all container images with the current git commit as tag |
+| `local-deploy` | Build images, install CRDs, and deploy the operator via Helm |
+| `local-stack` | Deploy the openvox-stack via Helm with local images |
+
 ## Documentation
 
 For detailed architecture documentation and CRD reference, see the [documentation](https://slauger.github.io/openvox-operator).
