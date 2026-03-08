@@ -41,6 +41,8 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 | **`Pool`** | Owns a Kubernetes Service | Service (type, annotations, port) |
 | **`Server`** | OpenVox Server instance pool | Deployment, HPA |
 | **`CodeDeploy`** | r10k code deployment from Git | PVC, Job, CronJob |
+| **`SigningPolicy`** | Policy-based CSR approval (psk, pattern, token, any) | — |
+| **`CertificateRequest`** | Represents a pending/signed CSR | — |
 | *`Database`* | *OpenVoxDB (future)* | *StatefulSet, Service* |
 
 Servers reference their Environment and optionally a Pool:
@@ -49,7 +51,9 @@ Servers reference their Environment and optionally a Pool:
 Environment <-- Server (environmentRef)
 Environment <-- CodeDeploy (environmentRef)
 Environment <-- Pool (environmentRef)
+Environment <-- SigningPolicy (via ca.signingPolicies)
 Pool        <-- Server (poolRef)
+CertificateRequest --> Environment (environmentRef)
 ```
 
 > Detailed data model: [docs/data-model.md](docs/data-model.md) - [docs/design.md](docs/design.md)
@@ -143,7 +147,11 @@ spec:
   image: { tag: "8.13.0" }       # newer version
   replicas: 1
   javaArgs: "-Xms512m -Xmx1024m"
----
+```
+
+### CodeDeploy - r10k from Git
+
+```yaml
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: CodeDeploy
 metadata:
@@ -152,7 +160,7 @@ spec:
   environmentRef: production
   image: { repository: ghcr.io/slauger/r10k, tag: "latest" }
   sources:
-   - name: puppet
+    - name: puppet
       remote: https://github.com/example/control-repo.git
       basedir: /etc/puppetlabs/code/environments
   schedule: "*/5 * * * *"
