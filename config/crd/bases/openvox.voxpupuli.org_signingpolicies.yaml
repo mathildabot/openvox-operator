@@ -4,21 +4,21 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.5
-  name: certificateauthorities.openvox.voxpupuli.org
+  name: signingpolicies.openvox.voxpupuli.org
 spec:
   group: openvox.voxpupuli.org
   names:
-    kind: CertificateAuthority
-    listKind: CertificateAuthorityList
-    plural: certificateauthorities
+    kind: SigningPolicy
+    listKind: SigningPolicyList
+    plural: signingpolicies
     shortNames:
-    - ca
-    singular: certificateauthority
+    - sp
+    singular: signingpolicy
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.environmentRef
-      name: Environment
+    - jsonPath: .spec.certificateAuthorityRef
+      name: CA
       type: string
     - jsonPath: .status.phase
       name: Phase
@@ -30,8 +30,8 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          CertificateAuthority is the Schema for the certificateauthorities API.
-          It manages the CA infrastructure: PVC, CA keys, CA public Secret, and signing policy.
+          SigningPolicy is the Schema for the signingpolicies API.
+          It defines a policy for automatic CSR signing against a CertificateAuthority.
         properties:
           apiVersion:
             description: |-
@@ -51,62 +51,82 @@ spec:
           metadata:
             type: object
           spec:
-            description: CertificateAuthoritySpec defines the desired state of CertificateAuthority.
+            description: |-
+              SigningPolicySpec defines the desired state of SigningPolicy.
+              Between policies: OR (any match signs). Within a policy: AND (all set fields must match).
             properties:
-              allowSubjectAltNames:
-                default: true
-                description: AllowSubjectAltNames controls whether SANs are allowed
-                  in CSRs.
+              any:
+                description: Any when true signs all CSRs unconditionally.
                 type: boolean
-              environmentRef:
-                description: EnvironmentRef references the Environment this CA belongs
-                  to.
+              certificateAuthorityRef:
+                description: CertificateAuthorityRef references the CertificateAuthority
+                  this policy applies to.
                 type: string
-              intermediateCA:
-                description: IntermediateCA configures an intermediate CA setup.
+              pattern:
+                description: Pattern defines certname glob matching rules.
                 properties:
-                  enabled:
-                    default: false
-                    description: Enabled activates intermediate CA mode.
-                    type: boolean
-                  secretName:
-                    description: SecretName is the name of the Secret containing ca.pem,
-                      key.pem, crl.pem.
-                    type: string
+                  allow:
+                    description: Allow is a list of glob patterns. The certname must
+                      match at least one.
+                    items:
+                      type: string
+                    type: array
                 required:
-                - enabled
+                - allow
                 type: object
-              storage:
-                description: Storage defines the PVC settings for CA data.
+              psk:
+                description: PSK defines a pre-shared key that must be present in
+                  the CSR extensions.
                 properties:
-                  size:
-                    default: 1Gi
-                    description: Size is the requested storage size.
+                  csrAttribute:
+                    default: pp_preshared_key
+                    description: CSRAttribute is the CSR extension attribute name
+                      to match against.
                     type: string
-                  storageClass:
-                    description: StorageClass is the storage class name. Empty means
-                      default.
-                    type: string
+                  secretRef:
+                    description: SecretRef references a Secret key containing the
+                      PSK value.
+                    properties:
+                      key:
+                        description: Key is the key within the Secret.
+                        type: string
+                      name:
+                        description: Name is the name of the Secret.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                required:
+                - secretRef
                 type: object
-              ttl:
-                default: 5y
-                description: |-
-                  TTL is the CA certificate TTL as a duration string.
-                  Supported units: s (seconds), m (minutes), h (hours), d (days), y (years).
-                  Examples: "5y", "365d", "8760h", "157680000s"
-                  Plain numbers are interpreted as seconds for backwards compatibility.
-                type: string
+              token:
+                description: Token defines token-based authentication via CSR extensions.
+                properties:
+                  csrAttribute:
+                    default: pp_auth_token
+                    description: CSRAttribute is the CSR extension attribute name
+                      to match against.
+                    type: string
+                  secretRef:
+                    description: SecretRef references a Secret containing certname-to-token
+                      mappings.
+                    properties:
+                      name:
+                        description: Name is the name of the Secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - secretRef
+                type: object
             required:
-            - environmentRef
+            - certificateAuthorityRef
             type: object
           status:
-            description: CertificateAuthorityStatus defines the observed state of
-              CertificateAuthority.
+            description: SigningPolicyStatus defines the observed state of SigningPolicy.
             properties:
-              caSecretName:
-                description: CASecretName is the name of the Secret containing ca_crt.pem,
-                  ca_crl.pem, infra_crl.pem.
-                type: string
               conditions:
                 description: Conditions represent the latest available observations.
                 items:
@@ -167,9 +187,7 @@ spec:
               phase:
                 description: Phase is the current lifecycle phase.
                 enum:
-                - Pending
-                - Initializing
-                - Ready
+                - Active
                 - Error
                 type: string
             type: object

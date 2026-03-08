@@ -4,7 +4,7 @@ This guide sets up a minimal OpenVox Server environment with a single pod acting
 
 ## Minimal Setup
 
-Create an Environment, CertificateAuthority, Certificate, Server, and Pool:
+Create an Environment, CertificateAuthority, SigningPolicy, Certificate, Server, and Pool:
 
 ```yaml
 apiVersion: openvox.voxpupuli.org/v1alpha1
@@ -15,8 +15,6 @@ spec:
   image:
     repository: ghcr.io/slauger/openvox-server
     tag: "8.12.1"
-  ca:
-    autosign: "true"
 ---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: CertificateAuthority
@@ -24,6 +22,14 @@ metadata:
   name: lab-ca
 spec:
   environmentRef: lab
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: SigningPolicy
+metadata:
+  name: lab-autosign
+spec:
+  certificateAuthorityRef: lab-ca
+  any: true
 ---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: Certificate
@@ -76,7 +82,7 @@ The operator will:
 ## Verify
 
 ```bash
-kubectl get environment,certificateauthority,certificate,server,pool
+kubectl get environment,certificateauthority,signingpolicy,certificate,server,pool
 ```
 
 ```
@@ -85,6 +91,9 @@ environment.openvox.voxpupuli.org/lab       Running   2m
 
 NAME                                                ENVIRONMENT   PHASE   AGE
 certificateauthority.openvox.voxpupuli.org/lab-ca   lab           Ready   2m
+
+NAME                                                     CA       PHASE    AGE
+signingpolicy.openvox.voxpupuli.org/lab-autosign         lab-ca   Active   2m
 
 NAME                                              AUTHORITY   CERTNAME   PHASE    AGE
 certificate.openvox.voxpupuli.org/lab-cert        lab-ca      puppet     Signed   2m

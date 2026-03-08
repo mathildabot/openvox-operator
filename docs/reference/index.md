@@ -6,20 +6,22 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 
 ```
 Environment
-  └─ CertificateAuthority (environmentRef → Environment)
-       └─ Certificate (authorityRef → CertificateAuthority)
-            └─ Server (certificateRef → Certificate, environmentRef → Environment)
-                 └─ Pool (selector → Server Pods, environmentRef → Environment)
+  ├─ CertificateAuthority (environmentRef → Environment)
+  │    ├─ SigningPolicy (certificateAuthorityRef → CertificateAuthority)
+  │    └─ Certificate (authorityRef → CertificateAuthority)
+  │         └─ Server (certificateRef → Certificate, environmentRef → Environment)
+  │              └─ Pool (selector → Server Pods, environmentRef → Environment)
 ```
 
-Each resource references its parent. The operator reconciles them in order: an Environment must exist before a CertificateAuthority can reference it, a CertificateAuthority must be `Ready` before a Certificate can be signed, and a Certificate must be `Signed` before a Server creates its Deployment.
+Each resource references its parent. The operator reconciles them in order: an Environment must exist before a CertificateAuthority can reference it, a CertificateAuthority must be `Ready` before a Certificate can be signed, and a Certificate must be `Signed` before a Server creates its Deployment. SigningPolicies can be created at any time and take effect within ~60 seconds.
 
 ## Resources
 
 | Kind | Short Name | Purpose |
 |---|---|---|
-| [Environment](environment.md) | `env` | Shared config (puppet.conf, auth.conf), PuppetDB connection, default image |
+| [Environment](environment.md) | `env` | Shared config (puppet.conf, auth.conf), PuppetDB connection |
 | [CertificateAuthority](certificateauthority.md) | `ca` | CA infrastructure: PVC, keys, public CA Secret |
+| [SigningPolicy](signingpolicy.md) | `sp` | Declarative CSR signing policy for a CA |
 | [Certificate](certificate.md) | `cert` | Lifecycle of a single certificate (request, sign) |
 | [Server](server.md) | - | OpenVox Server Deployment (CA and/or server role) |
 | [Pool](pool.md) | - | Kubernetes Service that selects Server Pods |
@@ -45,6 +47,8 @@ These types are reused across multiple CRDs.
 | `storageClass` | string | - | Storage class name (empty = default) |
 
 ### CodeSpec
+
+Used by [Server](server.md) to mount a PVC containing Puppet code.
 
 | Field | Type | Default | Description |
 |---|---|---|---|

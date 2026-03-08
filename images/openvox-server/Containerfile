@@ -2,8 +2,8 @@
 # K8s-first: no entrypoint.d scripts, no System Ruby, no Docker ENV config.
 # The operator manages all configuration via ConfigMaps and Secrets.
 #
-# Build:
-#   podman build -t openvox-server:latest images/openvox-server/
+# Build (from repo root):
+#   podman build -t openvox-server:latest -f images/openvox-server/Containerfile .
 #
 # Run:
 #   podman run --rm openvox-server:latest
@@ -154,6 +154,18 @@ RUN find / -path '*/openvoxserver-ca-*/lib/puppetserver/ca/action/setup.rb' \
     ; true
 
 ################################################################################
+# Stage: autosign — compile the openvox-autosign Go binary
+################################################################################
+FROM docker.io/library/golang:1.26 AS autosign
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY api/ api/
+COPY cmd/autosign/ cmd/autosign/
+RUN CGO_ENABLED=0 go build -o /openvox-autosign ./cmd/autosign/
+
+################################################################################
 # Stage: final — rootless runtime image (no Ruby)
 ################################################################################
 FROM base AS final
@@ -183,17 +195,18 @@ COPY --from=build /var/log/puppetlabs /var/log/puppetlabs
 COPY --from=build /var/run/puppetlabs /var/run/puppetlabs
 
 # Override tarball defaults with container-specific configs
-COPY conf.d/product.conf     /etc/puppetlabs/puppetserver/conf.d/
-COPY conf.d/puppetserver.conf /etc/puppetlabs/puppetserver/conf.d/
-COPY logback.xml              /etc/puppetlabs/puppetserver/
-COPY request-logging.xml      /etc/puppetlabs/puppetserver/
-COPY puppet.conf              /etc/puppetlabs/puppet/puppet.conf
+COPY images/openvox-server/conf.d/product.conf     /etc/puppetlabs/puppetserver/conf.d/
+COPY images/openvox-server/conf.d/puppetserver.conf /etc/puppetlabs/puppetserver/conf.d/
+COPY images/openvox-server/logback.xml              /etc/puppetlabs/puppetserver/
+COPY images/openvox-server/request-logging.xml      /etc/puppetlabs/puppetserver/
+COPY images/openvox-server/puppet.conf              /etc/puppetlabs/puppet/puppet.conf
 
-COPY entrypoint.sh /entrypoint.sh
-COPY healthcheck.sh /healthcheck.sh
-COPY cli-ca.sh /opt/puppetlabs/server/apps/puppetserver/cli/apps/ca
+COPY images/openvox-server/entrypoint.sh /entrypoint.sh
+COPY images/openvox-server/healthcheck.sh /healthcheck.sh
+COPY images/openvox-server/cli-ca.sh /opt/puppetlabs/server/apps/puppetserver/cli/apps/ca
+COPY --from=autosign /openvox-autosign /usr/local/bin/openvox-autosign
 
-RUN chmod +x /entrypoint.sh /healthcheck.sh /opt/puppetlabs/server/apps/puppetserver/cli/apps/ca
+RUN chmod +x /entrypoint.sh /healthcheck.sh /opt/puppetlabs/server/apps/puppetserver/cli/apps/ca /usr/local/bin/openvox-autosign
 
 # Set HOME explicitly: random UIDs (OpenShift) default HOME to "/"
 ENV HOME=/opt/puppetlabs/server/data/puppetserver

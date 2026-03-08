@@ -56,7 +56,7 @@ LOCAL_TAG ?= $(shell git describe --always --dirty)
 .PHONY: local-build
 local-build: ## Build all images for local development (Docker Desktop K8s).
 	$(CONTAINER_TOOL) build -t openvox-operator:$(LOCAL_TAG) -f images/openvox-operator/Containerfile .
-	$(CONTAINER_TOOL) build -t openvox-server:$(LOCAL_TAG) -f images/openvox-server/Containerfile images/openvox-server/
+	$(CONTAINER_TOOL) build -t openvox-server:$(LOCAL_TAG) -f images/openvox-server/Containerfile .
 	@echo "Built openvox-operator:$(LOCAL_TAG)"
 	@echo "Built openvox-server:$(LOCAL_TAG)"
 

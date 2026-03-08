@@ -4,7 +4,6 @@ metadata:
   name: production-ca
 spec:
   environmentRef: production
-  ttl: 157680000
-  autosign: "true"
+  ttl: 5y
   storage:
     size: 1Gi

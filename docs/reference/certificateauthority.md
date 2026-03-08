@@ -11,21 +11,28 @@ metadata:
   name: production-ca
 spec:
   environmentRef: production
-  autosign: "true"
   storage:
     size: 1Gi
 ```
+
+Autosigning is configured via [SigningPolicy](signingpolicy.md) resources that reference this CertificateAuthority.
 
 ## Spec
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `environmentRef` | string | **required** | Reference to the Environment |
-| `ttl` | int64 | `157680000` (5 years) | CA certificate TTL in seconds |
+| `ttl` | string | `5y` | CA certificate TTL as duration string (e.g. `5y`, `365d`, `8760h`) |
 | `allowSubjectAltNames` | bool | `true` | Allow SANs in CSRs |
-| `autosign` | string | `"true"` | Autosigning: `"true"`, `"false"`, or path to script |
 | `storage` | [StorageSpec](index.md#storagespec) | - | PVC settings for CA data |
-| `intermediateCA` | [IntermediateCASpec](environment.md#intermediatecaspec) | - | Intermediate CA configuration |
+| `intermediateCA` | [IntermediateCASpec](#intermediatecaspec) | - | Intermediate CA configuration |
+
+### IntermediateCASpec
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Activate intermediate CA mode |
+| `secretName` | string | - | Secret containing ca.pem, key.pem, crl.pem |
 
 ## Status
 

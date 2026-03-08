@@ -1,0 +1,41 @@
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: SigningPolicy
+metadata:
+  name: auto-approve
+spec:
+  certificateAuthorityRef: production-ca
+  any: true
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: SigningPolicy
+metadata:
+  name: trusted-hosts
+spec:
+  certificateAuthorityRef: production-ca
+  pattern:
+    allow:
+      - "*.example.com"
+      - "web-*"
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: SigningPolicy
+metadata:
+  name: bootstrap-key
+spec:
+  certificateAuthorityRef: production-ca
+  psk:
+    secretRef:
+      name: signing-psk
+      key: psk
+    csrAttribute: pp_preshared_key
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: SigningPolicy
+metadata:
+  name: one-time-tokens
+spec:
+  certificateAuthorityRef: production-ca
+  token:
+    secretRef:
+      name: signing-tokens
+    csrAttribute: pp_auth_token

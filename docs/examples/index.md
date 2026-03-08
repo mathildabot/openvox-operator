@@ -13,8 +13,6 @@ spec:
   image:
     repository: ghcr.io/slauger/openvox-server
     tag: "8.12.1"
-  ca:
-    autosign: "true"
 ---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: CertificateAuthority
@@ -22,6 +20,14 @@ metadata:
   name: lab-ca
 spec:
   environmentRef: lab
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: SigningPolicy
+metadata:
+  name: lab-autosign
+spec:
+  certificateAuthorityRef: lab-ca
+  any: true
 ---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: Certificate
@@ -70,10 +76,6 @@ spec:
   image:
     repository: ghcr.io/slauger/openvox-server
     tag: "8.12.1"
-  ca:
-    autosign: "true"
-    storage:
-      size: 1Gi
   puppetdb:
     serverUrls:
       - https://openvoxdb:8081
@@ -82,8 +84,6 @@ spec:
     storeconfigs: true
     storeBackend: puppetdb
     reports: puppetdb
-  code:
-    claimName: puppet-code
 ---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: CertificateAuthority
@@ -93,6 +93,14 @@ spec:
   environmentRef: production
   storage:
     size: 1Gi
+---
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: SigningPolicy
+metadata:
+  name: production-autosign
+spec:
+  certificateAuthorityRef: production-ca
+  any: true
 ---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: Certificate
@@ -175,6 +183,8 @@ spec:
   certificateRef: stable-cert
   replicas: 3
   maxActiveInstances: 2
+  code:
+    claimName: puppet-code
   resources:
     requests:
       cpu: "1"
@@ -193,6 +203,8 @@ spec:
   image:
     tag: "8.13.0"
   replicas: 1
+  code:
+    claimName: puppet-code
   resources:
     requests:
       cpu: "1"

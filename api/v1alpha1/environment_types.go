@@ -12,7 +12,7 @@ import (
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // Environment is the Schema for the environments API.
-// It manages shared configuration, CA lifecycle, and PuppetDB connection.
+// It manages shared configuration (puppet.conf, auth.conf) and PuppetDB connection.
 type Environment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -35,10 +35,6 @@ type EnvironmentSpec struct {
 	// Image defines the default container image for all Servers in this Environment.
 	Image ImageSpec `json:"image"`
 
-	// CA defines the Certificate Authority configuration.
-	// +optional
-	CA CASpec `json:"ca,omitempty"`
-
 	// PuppetDB defines the PuppetDB connection settings.
 	// +optional
 	PuppetDB PuppetDBSpec `json:"puppetdb,omitempty"`
@@ -46,11 +42,6 @@ type EnvironmentSpec struct {
 	// Puppet defines shared puppet.conf settings.
 	// +optional
 	Puppet PuppetSpec `json:"puppet,omitempty"`
-
-	// Code defines the PVC for Puppet code (environments directory).
-	// All Servers in this Environment mount this PVC by default.
-	// +optional
-	Code *CodeSpec `json:"code,omitempty"`
 }
 
 // CodeSpec references an existing PVC containing Puppet code.
@@ -105,33 +96,6 @@ type ImageSpec struct {
 	// PullSecrets is a list of image pull secrets.
 	// +optional
 	PullSecrets []corev1.LocalObjectReference `json:"pullSecrets,omitempty"`
-}
-
-// CASpec defines the Certificate Authority configuration.
-type CASpec struct {
-	// TTL is the CA certificate TTL in seconds.
-	// +kubebuilder:default=157680000
-	// +optional
-	TTL int64 `json:"ttl,omitempty"`
-
-	// AllowSubjectAltNames controls whether SANs are allowed in CSRs.
-	// +kubebuilder:default=true
-	// +optional
-	AllowSubjectAltNames bool `json:"allowSubjectAltNames,omitempty"`
-
-	// Autosign controls certificate autosigning.
-	// Can be "true", "false", or a path to an autosign script.
-	// +kubebuilder:default="true"
-	// +optional
-	Autosign string `json:"autosign,omitempty"`
-
-	// Storage defines the PVC settings for CA data.
-	// +optional
-	Storage StorageSpec `json:"storage,omitempty"`
-
-	// IntermediateCA configures an intermediate CA setup.
-	// +optional
-	IntermediateCA IntermediateCASpec `json:"intermediateCA,omitempty"`
 }
 
 // IntermediateCASpec defines an intermediate CA configuration.

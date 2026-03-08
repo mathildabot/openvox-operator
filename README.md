@@ -1,5 +1,11 @@
 # 🦊 openvox-operator
 
+[![CI](https://github.com/slauger/openvox-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/slauger/openvox-operator/actions/workflows/ci.yml)
+[![Go](https://github.com/slauger/openvox-operator/actions/workflows/go.yaml/badge.svg)](https://github.com/slauger/openvox-operator/actions/workflows/go.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/slauger/openvox-operator)](https://goreportcard.com/report/github.com/slauger/openvox-operator)
+[![Go Reference](https://pkg.go.dev/badge/github.com/slauger/openvox-operator.svg)](https://pkg.go.dev/github.com/slauger/openvox-operator)
+[![License](https://img.shields.io/github/license/slauger/openvox-operator)](LICENSE)
+
 A Kubernetes Operator for running [OpenVox Server](https://github.com/OpenVoxProject) environments on **Kubernetes** and **OpenShift**.
 
 - 🔐 **Automated CA Lifecycle** - CA initialization, certificate signing and distribution - fully managed

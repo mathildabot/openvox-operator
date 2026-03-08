@@ -48,12 +48,6 @@ type CertificateAuthoritySpec struct {
 	// +optional
 	AllowSubjectAltNames bool `json:"allowSubjectAltNames,omitempty"`
 
-	// Autosign controls certificate autosigning.
-	// Can be "true", "false", or a path to an autosign script.
-	// +kubebuilder:default="true"
-	// +optional
-	Autosign string `json:"autosign,omitempty"`
-
 	// Storage defines the PVC settings for CA data.
 	// +optional
 	Storage StorageSpec `json:"storage,omitempty"`

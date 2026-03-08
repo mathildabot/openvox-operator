@@ -630,4 +630,3 @@ func (r *CertificateReconciler) isSecretReady(ctx context.Context, name, namespa
 	}
 	return true
 }
-

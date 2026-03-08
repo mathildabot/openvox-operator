@@ -8,10 +8,6 @@ spec:
   image:
     repository: ghcr.io/slauger/openvox-server
     tag: "8.12.1"
-  ca:
-    autosign: "true"
-    storage:
-      size: 1Gi
   puppetdb:
     serverUrls:
       - https://openvoxdb:8081
@@ -20,5 +16,3 @@ spec:
     storeconfigs: true
     storeBackend: puppetdb
     reports: puppetdb
-  code:
-    claimName: puppet-code

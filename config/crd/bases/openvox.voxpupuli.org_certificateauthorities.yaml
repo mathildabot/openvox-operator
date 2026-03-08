@@ -58,12 +58,6 @@ spec:
                 description: AllowSubjectAltNames controls whether SANs are allowed
                   in CSRs.
                 type: boolean
-              autosign:
-                default: "true"
-                description: |-
-                  Autosign controls certificate autosigning.
-                  Can be "true", "false", or a path to an autosign script.
-                type: string
               environmentRef:
                 description: EnvironmentRef references the Environment this CA belongs
                   to.

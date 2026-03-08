@@ -1,6 +1,6 @@
 # Environment
 
-An Environment holds shared configuration for all Servers: the default container image, puppet.conf settings, PuppetDB connection, and an optional code volume. It is the root resource in the CRD hierarchy.
+An Environment holds shared configuration for all Servers: the default container image, puppet.conf settings, and PuppetDB connection. It is the root resource in the CRD hierarchy. CA settings (`ca_ttl`, `autosign`) are automatically pulled from the CertificateAuthority referencing this Environment.
 
 ## Example
 
@@ -20,8 +20,6 @@ spec:
   puppetdb:
     serverUrls:
       - "https://puppetdb.example.com:8081"
-  code:
-    claimName: puppet-code
 ```
 
 ## Spec
@@ -29,27 +27,8 @@ spec:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `image` | [ImageSpec](index.md#imagespec) | **required** | Default container image for all Servers |
-| `ca` | [CASpec](#caspec) | - | CA configuration defaults |
 | `puppet` | [PuppetSpec](#puppetspec) | - | Shared puppet.conf settings |
 | `puppetdb` | [PuppetDBSpec](#puppetdbspec) | - | PuppetDB connection settings |
-| `code` | [CodeSpec](index.md#codespec) | - | PVC for Puppet code (environments directory) |
-
-### CASpec
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `ttl` | int64 | `157680000` (5 years) | CA certificate TTL in seconds |
-| `allowSubjectAltNames` | bool | `true` | Allow SANs in CSRs |
-| `autosign` | string | `"true"` | Autosigning: `"true"`, `"false"`, or path to script |
-| `storage` | [StorageSpec](index.md#storagespec) | - | PVC settings for CA data |
-| `intermediateCA` | [IntermediateCASpec](#intermediatecaspec) | - | Intermediate CA configuration |
-
-### IntermediateCASpec
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | bool | `false` | Activate intermediate CA mode |
-| `secretName` | string | - | Secret containing ca.pem, key.pem, crl.pem |
 
 ### PuppetSpec
 
