@@ -144,10 +144,9 @@ spec:
                     description: Repository is the container image repository.
                     type: string
                   tag:
+                    default: latest
                     description: Tag is the container image tag.
                     type: string
-                required:
-                - tag
                 type: object
               javaArgs:
                 default: -Xms512m -Xmx1024m

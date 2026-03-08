@@ -98,7 +98,8 @@ type ImageSpec struct {
 	Repository string `json:"repository,omitempty"`
 
 	// Tag is the container image tag.
-	Tag string `json:"tag"`
+	// +kubebuilder:default="latest"
+	Tag string `json:"tag,omitempty"`
 
 	// PullPolicy defines the image pull policy.
 	// +kubebuilder:default="IfNotPresent"
