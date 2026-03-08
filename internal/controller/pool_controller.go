@@ -92,7 +92,7 @@ func (r *PoolReconciler) reconcileService(ctx context.Context, pool *openvoxv1al
 		}
 
 		labels := environmentLabels(pool.Spec.EnvironmentRef)
-		labels[LabelPool] = pool.Name
+		labels[poolLabel(pool.Name)] = "true"
 
 		// Merge additional labels
 		for k, v := range pool.Spec.Service.Labels {
@@ -143,7 +143,7 @@ func (r *PoolReconciler) reconcileService(ctx context.Context, pool *openvoxv1al
 
 	// Update labels
 	labels := environmentLabels(pool.Spec.EnvironmentRef)
-	labels[LabelPool] = pool.Name
+	labels[poolLabel(pool.Name)] = "true"
 	for k, v := range pool.Spec.Service.Labels {
 		labels[k] = v
 	}

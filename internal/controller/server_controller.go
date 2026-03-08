@@ -131,8 +131,8 @@ func (r *ServerReconciler) reconcileDeployment(ctx context.Context, server *open
 
 	// Build labels
 	labels := serverLabels(server.Spec.EnvironmentRef, server.Name, role)
-	if server.Spec.PoolRef != "" {
-		labels[LabelPool] = server.Spec.PoolRef
+	for _, pool := range server.Spec.PoolRefs {
+		labels[poolLabel(pool)] = "true"
 	}
 
 	// Deployment strategy

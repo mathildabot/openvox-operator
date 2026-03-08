@@ -18,8 +18,8 @@ spec:
     - jsonPath: .spec.environmentRef
       name: Environment
       type: string
-    - jsonPath: .spec.poolRef
-      name: Pool
+    - jsonPath: .spec.poolRefs
+      name: Pools
       type: string
     - jsonPath: .spec.replicas
       name: Replicas
@@ -153,11 +153,13 @@ spec:
                   Pod.
                 format: int32
                 type: integer
-              poolRef:
+              poolRefs:
                 description: |-
-                  PoolRef references the Pool this Server joins. Optional.
-                  When set, Pods get the pool label and are selected by the Pool's Service.
-                type: string
+                  PoolRefs references one or more Pools this Server joins.
+                  For each Pool, Pods get a pool label and are selected by that Pool's Service.
+                items:
+                  type: string
+                type: array
               replicas:
                 default: 1
                 description: Replicas is the number of Server instances.

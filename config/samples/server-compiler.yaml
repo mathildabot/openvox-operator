@@ -6,7 +6,8 @@ metadata:
   namespace: openvox-system
 spec:
   environmentRef: production
-  poolRef: puppet
+  poolRefs:
+    - puppet
   replicas: 2
   maxActiveInstances: 2
   javaArgs: "-Xms512m -Xmx1024m"

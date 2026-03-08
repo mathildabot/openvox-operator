@@ -8,7 +8,7 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Environment",type=string,JSONPath=`.spec.environmentRef`
-// +kubebuilder:printcolumn:name="Pool",type=string,JSONPath=`.spec.poolRef`
+// +kubebuilder:printcolumn:name="Pools",type=string,JSONPath=`.spec.poolRefs`
 // +kubebuilder:printcolumn:name="Replicas",type=integer,JSONPath=`.spec.replicas`
 // +kubebuilder:printcolumn:name="Ready",type=integer,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
@@ -38,10 +38,10 @@ type ServerSpec struct {
 	// EnvironmentRef references the Environment this Server belongs to.
 	EnvironmentRef string `json:"environmentRef"`
 
-	// PoolRef references the Pool this Server joins. Optional.
-	// When set, Pods get the pool label and are selected by the Pool's Service.
+	// PoolRefs references one or more Pools this Server joins.
+	// For each Pool, Pods get a pool label and are selected by that Pool's Service.
 	// +optional
-	PoolRef string `json:"poolRef,omitempty"`
+	PoolRefs []string `json:"poolRefs,omitempty"`
 
 	// Image overrides the Environment's default image.
 	// +optional

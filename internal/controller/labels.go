@@ -3,7 +3,7 @@ package controller
 const (
 	// Label keys used across all resources.
 	LabelEnvironment = "openvox.voxpupuli.org/environment"
-	LabelPool        = "openvox.voxpupuli.org/pool"
+	LabelPoolPrefix  = "openvox.voxpupuli.org/pool-"
 	LabelServer      = "openvox.voxpupuli.org/server"
 	LabelRole        = "openvox.voxpupuli.org/role"
 
@@ -33,10 +33,15 @@ func serverLabels(envName, serverName, role string) map[string]string {
 	return labels
 }
 
+// poolLabel returns the label key for a specific Pool.
+func poolLabel(poolName string) string {
+	return LabelPoolPrefix + poolName
+}
+
 // poolSelector returns the label selector for a Pool's Service.
 func poolSelector(poolName string) map[string]string {
 	return map[string]string{
-		LabelPool: poolName,
+		poolLabel(poolName): "true",
 	}
 }
 

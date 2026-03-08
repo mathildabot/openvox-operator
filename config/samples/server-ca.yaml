@@ -8,5 +8,7 @@ spec:
   environmentRef: production
   ca: true
   compiler: true
+  poolRefs:
+    - puppet
   replicas: 1
   javaArgs: "-Xms512m -Xmx1024m"
