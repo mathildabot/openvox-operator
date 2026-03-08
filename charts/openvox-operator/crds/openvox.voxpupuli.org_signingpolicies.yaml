@@ -62,6 +62,45 @@ spec:
                 description: CertificateAuthorityRef references the CertificateAuthority
                   this policy applies to.
                 type: string
+              csrAttributes:
+                description: |-
+                  CSRAttributes defines CSR extension attributes that must all match (AND logic).
+                  Each entry specifies an attribute name and the expected value (inline or from a Secret).
+                items:
+                  description: CSRAttributeMatch defines a single CSR extension attribute
+                    to match.
+                  properties:
+                    name:
+                      description: Name is the CSR extension attribute name (e.g.
+                        pp_preshared_key, pp_environment).
+                      type: string
+                    value:
+                      description: Value is the expected attribute value (inline).
+                      type: string
+                    valueFrom:
+                      description: ValueFrom references a Secret key containing the
+                        expected value.
+                      properties:
+                        secretKeyRef:
+                          description: SecretKeyRef selects a key from a Secret.
+                          properties:
+                            key:
+                              description: Key is the key within the Secret.
+                              type: string
+                            name:
+                              description: Name is the name of the Secret.
+                              type: string
+                          required:
+                          - key
+                          - name
+                          type: object
+                      required:
+                      - secretKeyRef
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
               pattern:
                 description: Pattern defines certname glob matching rules.
                 properties:
@@ -73,53 +112,6 @@ spec:
                     type: array
                 required:
                 - allow
-                type: object
-              psk:
-                description: PSK defines a pre-shared key that must be present in
-                  the CSR extensions.
-                properties:
-                  csrAttribute:
-                    default: pp_preshared_key
-                    description: CSRAttribute is the CSR extension attribute name
-                      to match against.
-                    type: string
-                  secretRef:
-                    description: SecretRef references a Secret key containing the
-                      PSK value.
-                    properties:
-                      key:
-                        description: Key is the key within the Secret.
-                        type: string
-                      name:
-                        description: Name is the name of the Secret.
-                        type: string
-                    required:
-                    - key
-                    - name
-                    type: object
-                required:
-                - secretRef
-                type: object
-              token:
-                description: Token defines token-based authentication via CSR extensions.
-                properties:
-                  csrAttribute:
-                    default: pp_auth_token
-                    description: CSRAttribute is the CSR extension attribute name
-                      to match against.
-                    type: string
-                  secretRef:
-                    description: SecretRef references a Secret containing certname-to-token
-                      mappings.
-                    properties:
-                      name:
-                        description: Name is the name of the Secret.
-                        type: string
-                    required:
-                    - name
-                    type: object
-                required:
-                - secretRef
                 type: object
             required:
             - certificateAuthorityRef

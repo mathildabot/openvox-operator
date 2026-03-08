@@ -19,11 +19,10 @@ type PolicyConfig struct {
 
 // Policy defines a single signing policy.
 type Policy struct {
-	Name    string       `yaml:"name"`
-	Any     bool         `yaml:"any,omitempty"`
-	Pattern *PatternConf `yaml:"pattern,omitempty"`
-	PSK     *PSKConf     `yaml:"psk,omitempty"`
-	Token   *TokenConf   `yaml:"token,omitempty"`
+	Name          string             `yaml:"name"`
+	Any           bool               `yaml:"any,omitempty"`
+	Pattern       *PatternConf       `yaml:"pattern,omitempty"`
+	CSRAttributes []CSRAttributeConf `yaml:"csrAttributes,omitempty"`
 }
 
 // PatternConf defines certname glob matching.
@@ -31,16 +30,10 @@ type PatternConf struct {
 	Allow []string `yaml:"allow"`
 }
 
-// PSKConf defines a pre-shared key rule.
-type PSKConf struct {
-	Value        string `yaml:"value"`
-	CSRAttribute string `yaml:"csrAttribute"`
-}
-
-// TokenConf defines token-based authentication.
-type TokenConf struct {
-	Tokens       map[string]string `yaml:"tokens"`
-	CSRAttribute string            `yaml:"csrAttribute"`
+// CSRAttributeConf defines a single CSR extension attribute to match.
+type CSRAttributeConf struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
 }
 
 // Known Puppet CSR extension OIDs.
@@ -154,16 +147,9 @@ func evaluatePolicy(policy Policy, certname string, csr *x509.CertificateRequest
 		}
 	}
 
-	if policy.PSK != nil {
+	if len(policy.CSRAttributes) > 0 {
 		hasCondition = true
-		if !matchPSK(policy.PSK, csr) {
-			return false
-		}
-	}
-
-	if policy.Token != nil {
-		hasCondition = true
-		if !matchToken(policy.Token, certname, csr) {
+		if !matchCSRAttributes(policy.CSRAttributes, csr) {
 			return false
 		}
 	}
@@ -182,31 +168,22 @@ func matchPattern(p *PatternConf, certname string) bool {
 	return false
 }
 
-// matchPSK checks if the CSR contains the expected PSK value.
-func matchPSK(p *PSKConf, csr *x509.CertificateRequest) bool {
-	val, ok := extractCSRAttribute(csr, p.CSRAttribute)
-	if !ok {
-		return false
+// matchCSRAttributes checks if all CSR attribute matchers match (AND logic).
+func matchCSRAttributes(attrs []CSRAttributeConf, csr *x509.CertificateRequest) bool {
+	for _, attr := range attrs {
+		val, ok := extractCSRAttribute(csr, attr.Name)
+		if !ok {
+			return false
+		}
+		if val != attr.Value {
+			return false
+		}
 	}
-	return val == p.Value
-}
-
-// matchToken checks if the CSR contains a valid token for this certname.
-func matchToken(t *TokenConf, certname string, csr *x509.CertificateRequest) bool {
-	val, ok := extractCSRAttribute(csr, t.CSRAttribute)
-	if !ok {
-		return false
-	}
-	expected, exists := t.Tokens[certname]
-	if !exists {
-		return false
-	}
-	return val == expected
+	return true
 }
 
 // globMatch implements simple glob matching with * and ? for Puppet certnames.
 func globMatch(pattern, name string) bool {
-	// Use filepath.Match which supports * and ? globs
 	matched, err := filepath.Match(pattern, name)
 	if err != nil {
 		return false

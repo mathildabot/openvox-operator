@@ -44,13 +44,10 @@ type SigningPolicySpec struct {
 	// +optional
 	Pattern *PatternSpec `json:"pattern,omitempty"`
 
-	// PSK defines a pre-shared key that must be present in the CSR extensions.
+	// CSRAttributes defines CSR extension attributes that must all match (AND logic).
+	// Each entry specifies an attribute name and the expected value (inline or from a Secret).
 	// +optional
-	PSK *PSKSpec `json:"psk,omitempty"`
-
-	// Token defines token-based authentication via CSR extensions.
-	// +optional
-	Token *TokenSpec `json:"token,omitempty"`
+	CSRAttributes []CSRAttributeMatch `json:"csrAttributes,omitempty"`
 }
 
 // PatternSpec defines certname glob matching.
@@ -59,26 +56,24 @@ type PatternSpec struct {
 	Allow []string `json:"allow"`
 }
 
-// PSKSpec defines a pre-shared key matching rule.
-type PSKSpec struct {
-	// SecretRef references a Secret key containing the PSK value.
-	SecretRef SecretKeyRef `json:"secretRef"`
+// CSRAttributeMatch defines a single CSR extension attribute to match.
+type CSRAttributeMatch struct {
+	// Name is the CSR extension attribute name (e.g. pp_preshared_key, pp_environment).
+	Name string `json:"name"`
 
-	// CSRAttribute is the CSR extension attribute name to match against.
-	// +kubebuilder:default="pp_preshared_key"
+	// Value is the expected attribute value (inline).
 	// +optional
-	CSRAttribute string `json:"csrAttribute,omitempty"`
+	Value string `json:"value,omitempty"`
+
+	// ValueFrom references a Secret key containing the expected value.
+	// +optional
+	ValueFrom *SecretKeySelector `json:"valueFrom,omitempty"`
 }
 
-// TokenSpec defines token-based authentication.
-type TokenSpec struct {
-	// SecretRef references a Secret containing certname-to-token mappings.
-	SecretRef LocalSecretReference `json:"secretRef"`
-
-	// CSRAttribute is the CSR extension attribute name to match against.
-	// +kubebuilder:default="pp_auth_token"
-	// +optional
-	CSRAttribute string `json:"csrAttribute,omitempty"`
+// SecretKeySelector references a specific key within a Secret.
+type SecretKeySelector struct {
+	// SecretKeyRef selects a key from a Secret.
+	SecretKeyRef SecretKeyRef `json:"secretKeyRef"`
 }
 
 // SecretKeyRef references a specific key within a Secret.
@@ -88,12 +83,6 @@ type SecretKeyRef struct {
 
 	// Key is the key within the Secret.
 	Key string `json:"key"`
-}
-
-// LocalSecretReference references a Secret by name.
-type LocalSecretReference struct {
-	// Name is the name of the Secret.
-	Name string `json:"name"`
 }
 
 // SigningPolicyPhase represents the current lifecycle phase of a SigningPolicy.

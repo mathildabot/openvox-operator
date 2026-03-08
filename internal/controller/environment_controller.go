@@ -659,45 +659,22 @@ func (r *EnvironmentReconciler) renderAutosignPolicyConfig(ctx context.Context, 
 			}
 		}
 
-		if p.Spec.PSK != nil {
-			// Resolve PSK value from Secret
-			pskValue, err := r.resolveSecretKey(ctx, namespace, p.Spec.PSK.SecretRef.Name, p.Spec.PSK.SecretRef.Key)
-			if err != nil {
-				r.updateSigningPolicyStatus(ctx, &p, err)
-				return "", fmt.Errorf("resolving PSK for policy %s: %w", p.Name, err)
+		if len(p.Spec.CSRAttributes) > 0 {
+			sb.WriteString("    csrAttributes:\n")
+			for _, attr := range p.Spec.CSRAttributes {
+				value := attr.Value
+				if attr.ValueFrom != nil {
+					var err error
+					value, err = r.resolveSecretKey(ctx, namespace,
+						attr.ValueFrom.SecretKeyRef.Name, attr.ValueFrom.SecretKeyRef.Key)
+					if err != nil {
+						r.updateSigningPolicyStatus(ctx, &p, err)
+						return "", fmt.Errorf("resolving csrAttribute %q for policy %s: %w", attr.Name, p.Name, err)
+					}
+				}
+				sb.WriteString(fmt.Sprintf("      - name: %s\n", attr.Name))
+				sb.WriteString(fmt.Sprintf("        value: %q\n", value))
 			}
-			csrAttr := p.Spec.PSK.CSRAttribute
-			if csrAttr == "" {
-				csrAttr = "pp_preshared_key"
-			}
-			sb.WriteString("    psk:\n")
-			sb.WriteString(fmt.Sprintf("      value: %q\n", pskValue))
-			sb.WriteString(fmt.Sprintf("      csrAttribute: %s\n", csrAttr))
-		}
-
-		if p.Spec.Token != nil {
-			// Resolve token values from Secret
-			tokens, err := r.resolveSecretData(ctx, namespace, p.Spec.Token.SecretRef.Name)
-			if err != nil {
-				r.updateSigningPolicyStatus(ctx, &p, err)
-				return "", fmt.Errorf("resolving tokens for policy %s: %w", p.Name, err)
-			}
-			csrAttr := p.Spec.Token.CSRAttribute
-			if csrAttr == "" {
-				csrAttr = "pp_auth_token"
-			}
-			sb.WriteString("    token:\n")
-			sb.WriteString("      tokens:\n")
-			// Sort token keys for deterministic output
-			tokenKeys := make([]string, 0, len(tokens))
-			for k := range tokens {
-				tokenKeys = append(tokenKeys, k)
-			}
-			sort.Strings(tokenKeys)
-			for _, k := range tokenKeys {
-				sb.WriteString(fmt.Sprintf("        %s: %q\n", k, tokens[k]))
-			}
-			sb.WriteString(fmt.Sprintf("      csrAttribute: %s\n", csrAttr))
 		}
 	}
 
@@ -715,19 +692,6 @@ func (r *EnvironmentReconciler) resolveSecretKey(ctx context.Context, namespace,
 		return "", fmt.Errorf("key %q not found in Secret %s", key, secretName)
 	}
 	return string(val), nil
-}
-
-// resolveSecretData reads all key-value pairs from a Secret.
-func (r *EnvironmentReconciler) resolveSecretData(ctx context.Context, namespace, secretName string) (map[string]string, error) {
-	secret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
-		return nil, fmt.Errorf("getting Secret %s: %w", secretName, err)
-	}
-	result := make(map[string]string, len(secret.Data))
-	for k, v := range secret.Data {
-		result[k] = string(v)
-	}
-	return result, nil
 }
 
 // updateSigningPolicyStatus sets the phase and condition on a SigningPolicy.
