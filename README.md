@@ -72,16 +72,18 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 
 ```
 Environment
-  └─ CertificateAuthority (environmentRef → Environment)
-       └─ Certificate (authorityRef → CertificateAuthority)
-            └─ Server (certificateRef → Certificate)
-                 └─ Pool (selector → Server Pods)
+  ├─ CertificateAuthority (environmentRef → Environment)
+  │    ├─ SigningPolicy (certificateAuthorityRef → CertificateAuthority)
+  │    └─ Certificate (authorityRef → CertificateAuthority)
+  │         └─ Server (certificateRef → Certificate)
+  │              └─ Pool (selector → Server Pods)
 ```
 
 | Kind | Purpose | Creates |
 |---|---|---|
 | **`Environment`** | Shared config (puppet.conf, auth.conf, etc.), PuppetDB connection | ConfigMaps, ServiceAccount |
 | **`CertificateAuthority`** | CA infrastructure: keys, signing, public certificates | PVC, CA Setup Job, CA Secret |
+| **`SigningPolicy`** | Declarative CSR signing policy (any, pattern, CSR attributes) | Autosign Policy Secret |
 | **`Certificate`** | Lifecycle of a single certificate (request, sign) | Cert Setup Job, SSL Secret |
 | **`Server`** | OpenVox Server instance pool | Deployment, HPA |
 | **`Pool`** | Owns a Kubernetes Service that selects Server Pods | Service (type, annotations, port) |
@@ -91,7 +93,6 @@ Environment
 | Kind | Purpose |
 |---|---|
 | **`CodeDeploy`** | r10k code deployment from Git (PVC, Job, CronJob) |
-| **`SigningPolicy`** | Policy-based CSR approval (psk, pattern, token, any) |
 | *`Database`* | *OpenVox DB (StatefulSet, Service)* |
 
 ### Why separate CRDs for CA and Certificates?
