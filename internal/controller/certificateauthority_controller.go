@@ -2,7 +2,11 @@ package controller
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -14,7 +18,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"strings"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +39,8 @@ type CertificateAuthorityReconciler struct {
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=certificateauthorities/finalizers,verbs=update
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=certificates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=environments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=servers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=pools,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
@@ -110,7 +115,13 @@ func (r *CertificateAuthorityReconciler) Reconcile(ctx context.Context, req ctrl
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	// Periodic CRL refresh: fetch CRL from CA service and update the CRL secret
+	crlResult, err := r.reconcileCRLRefresh(ctx, ca)
+	if err != nil {
+		logger.Error(err, "CRL refresh failed, will retry")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	return crlResult, nil
 }
 
 func (r *CertificateAuthorityReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -131,6 +142,105 @@ func (r *CertificateAuthorityReconciler) SetupWithManager(mgr ctrl.Manager) erro
 			},
 		)).
 		Complete(r)
+}
+
+// --- CRL Refresh ---
+
+// reconcileCRLRefresh fetches the CRL from the CA service and updates the CRL secret.
+// Returns a Result with RequeueAfter set to the configured refresh interval.
+func (r *CertificateAuthorityReconciler) reconcileCRLRefresh(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	interval := 5 * time.Minute
+	if ca.Spec.CRLRefreshInterval != "" {
+		parsed, err := time.ParseDuration(ca.Spec.CRLRefreshInterval)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("parsing crlRefreshInterval %q: %w", ca.Spec.CRLRefreshInterval, err)
+		}
+		interval = parsed
+	}
+
+	caServiceName := findCAServiceName(ctx, r.Client, ca, ca.Namespace)
+	if caServiceName == "" {
+		logger.Info("CA service not yet available, skipping CRL refresh")
+		return ctrl.Result{RequeueAfter: interval}, nil
+	}
+
+	crlPEM, err := r.fetchCRL(ctx, caServiceName, ca.Namespace)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("fetching CRL: %w", err)
+	}
+
+	crlSecretName := fmt.Sprintf("%s-ca-crl", ca.Name)
+	if err := r.updateCRLSecret(ctx, ca, crlSecretName, crlPEM); err != nil {
+		return ctrl.Result{}, fmt.Errorf("updating CRL secret: %w", err)
+	}
+
+	logger.Info("CRL secret refreshed", "secret", crlSecretName, "nextRefresh", interval)
+	return ctrl.Result{RequeueAfter: interval}, nil
+}
+
+// fetchCRL retrieves the CRL from the CA HTTP API.
+func (r *CertificateAuthorityReconciler) fetchCRL(ctx context.Context, caServiceName, namespace string) ([]byte, error) {
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // internal CA
+		},
+	}
+
+	crlURL := fmt.Sprintf("https://%s.%s.svc:8140/puppet-ca/v1/certificate_revocation_list/ca?environment=production", caServiceName, namespace)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("building CRL request: %w", err)
+	}
+	req.Header.Set("Accept", "text/plain")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("requesting CRL: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading CRL response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("CA returned HTTP %d for CRL: %s", resp.StatusCode, string(body))
+	}
+
+	return body, nil
+}
+
+// updateCRLSecret creates or updates the CRL secret with fresh CRL data.
+func (r *CertificateAuthorityReconciler) updateCRLSecret(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, name string, crlPEM []byte) error {
+	labels := environmentLabels(ca.Spec.EnvironmentRef)
+
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: ca.Namespace}, secret)
+	if errors.IsNotFound(err) {
+		secret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ca.Namespace,
+				Labels:    labels,
+			},
+			Data: map[string][]byte{
+				"ca_crl.pem": crlPEM,
+			},
+		}
+		if err := controllerutil.SetControllerReference(ca, secret, r.Scheme); err != nil {
+			return err
+		}
+		return r.Create(ctx, secret)
+	} else if err != nil {
+		return err
+	}
+
+	secret.Data["ca_crl.pem"] = crlPEM
+	return r.Update(ctx, secret)
 }
 
 // --- CA PVC ---
@@ -200,7 +310,9 @@ func (r *CertificateAuthorityReconciler) reconcileCASetupRBAC(ctx context.Contex
 	labels := environmentLabels(ca.Spec.EnvironmentRef)
 	labels["openvox.voxpupuli.org/certificateauthority"] = ca.Name
 
-	resourceNames := []string{caSecretName}
+	caKeySecretName := fmt.Sprintf("%s-ca-key", ca.Name)
+	caCRLSecretName := fmt.Sprintf("%s-ca-crl", ca.Name)
+	resourceNames := []string{caSecretName, caKeySecretName, caCRLSecretName}
 	for _, cert := range certs {
 		resourceNames = append(resourceNames, fmt.Sprintf("%s-tls", cert.Name))
 	}
@@ -369,10 +481,15 @@ func (r *CertificateAuthorityReconciler) buildCASetupJob(ca *openvoxv1alpha1.Cer
 
 	script := buildCAOnlySetupScript()
 
+	caKeySecretName := fmt.Sprintf("%s-ca-key", ca.Name)
+	caCRLSecretName := fmt.Sprintf("%s-ca-crl", ca.Name)
+
 	envVars := []corev1.EnvVar{
 		{Name: "CERTNAME", Value: certname},
 		{Name: "DNS_ALT_NAMES", Value: dnsAltNames},
 		{Name: "CA_SECRET_NAME", Value: caSecretName},
+		{Name: "CA_KEY_SECRET_NAME", Value: caKeySecretName},
+		{Name: "CA_CRL_SECRET_NAME", Value: caCRLSecretName},
 		{Name: "ENV_NAME", Value: ca.Spec.EnvironmentRef},
 		{Name: "SSL_SECRET_NAME", Value: tlsSecretName},
 		{Name: "CERT_RESOURCE_NAME", Value: certResourceName},
@@ -438,7 +555,7 @@ func (r *CertificateAuthorityReconciler) buildCASetupJob(ca *openvoxv1alpha1.Cer
 	}
 }
 
-// buildCAOnlySetupScript returns a script that initializes the CA and creates the CA Secret.
+// buildCAOnlySetupScript returns a script that initializes the CA and creates 3 CA Secrets.
 func buildCAOnlySetupScript() string {
 	return `#!/bin/bash
 set -euo pipefail
@@ -481,11 +598,8 @@ create_or_update_secret() {
   echo "Secret '${SECRET_NAME}' created/updated successfully."
 }
 
-# CA public data Secret
+# CA public cert secret (mounted in all pods)
 CA_CRT=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/ca_crt.pem)
-CA_CRL=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/ca_crl.pem)
-INFRA_CRL=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/infra_crl.pem)
-
 create_or_update_secret "${CA_SECRET_NAME}" "{
   \"apiVersion\": \"v1\",
   \"kind\": \"Secret\",
@@ -499,13 +613,51 @@ create_or_update_secret "${CA_SECRET_NAME}" "{
     }
   },
   \"data\": {
-    \"ca_crt.pem\": \"${CA_CRT}\",
+    \"ca_crt.pem\": \"${CA_CRT}\"
+  }
+}"
+
+# CA private key secret (never mounted — only accessed by controller via K8s API)
+CA_KEY=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/ca_key.pem)
+create_or_update_secret "${CA_KEY_SECRET_NAME}" "{
+  \"apiVersion\": \"v1\",
+  \"kind\": \"Secret\",
+  \"metadata\": {
+    \"name\": \"${CA_KEY_SECRET_NAME}\",
+    \"namespace\": \"${NAMESPACE}\",
+    \"labels\": {
+      \"app.kubernetes.io/managed-by\": \"openvox-operator\",
+      \"app.kubernetes.io/name\": \"openvox\",
+      \"openvox.voxpupuli.org/environment\": \"${ENV_NAME}\"
+    }
+  },
+  \"data\": {
+    \"ca_key.pem\": \"${CA_KEY}\"
+  }
+}"
+
+# CA CRL secret (mounted in non-CA pods for kubelet auto-sync)
+CA_CRL=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/ca_crl.pem)
+INFRA_CRL=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/infra_crl.pem)
+create_or_update_secret "${CA_CRL_SECRET_NAME}" "{
+  \"apiVersion\": \"v1\",
+  \"kind\": \"Secret\",
+  \"metadata\": {
+    \"name\": \"${CA_CRL_SECRET_NAME}\",
+    \"namespace\": \"${NAMESPACE}\",
+    \"labels\": {
+      \"app.kubernetes.io/managed-by\": \"openvox-operator\",
+      \"app.kubernetes.io/name\": \"openvox\",
+      \"openvox.voxpupuli.org/environment\": \"${ENV_NAME}\"
+    }
+  },
+  \"data\": {
     \"ca_crl.pem\": \"${CA_CRL}\",
     \"infra_crl.pem\": \"${INFRA_CRL}\"
   }
 }"
 
-echo "CA secret created successfully."
+echo "CA secrets created successfully."
 
 # TLS Secret for the initial server certificate (if a Certificate resource exists)
 if [ -n "${SSL_SECRET_NAME}" ] && [ -f "/etc/puppetlabs/puppet/ssl/certs/${CERTNAME}.pem" ]; then

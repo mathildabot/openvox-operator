@@ -110,12 +110,16 @@ func (r *EnvironmentReconciler) reconcileConfigMap(ctx context.Context, env *ope
 		return fmt.Errorf("rendering puppet.conf: %w", err)
 	}
 
+	ca := r.findCertificateAuthority(ctx, env)
+
 	data := map[string]string{
 		"puppet.conf":       puppetConf,
 		"puppetdb.conf":     r.renderPuppetDBConf(env),
 		"webserver.conf":    r.renderWebserverConf(env),
+		"webserver-ca.conf": r.renderWebserverConfCA(env),
 		"puppetserver.conf": r.renderPuppetserverConf(env),
 		"auth.conf":         r.renderAuthConf(),
+		"ca.conf":           r.renderCAConf(ca),
 		"product.conf":      "product: {\n    check-for-updates: false\n}\n",
 		"ca-enabled.cfg":    "puppetlabs.services.ca.certificate-authority-service/certificate-authority-service\npuppetlabs.trapperkeeper.services.watcher.filesystem-watch-service/filesystem-watch-service\n",
 		"ca-disabled.cfg":   "puppetlabs.services.ca.certificate-authority-disabled-service/certificate-authority-disabled-service\npuppetlabs.trapperkeeper.services.watcher.filesystem-watch-service/filesystem-watch-service\n",
@@ -227,7 +231,24 @@ func (r *EnvironmentReconciler) renderPuppetDBConf(env *openvoxv1alpha1.Environm
 		strings.Join(env.Spec.PuppetDB.ServerURLs, ","))
 }
 
+// renderWebserverConf returns the webserver.conf for non-CA servers.
+// CRL is read from the kubelet-synced secret mount at /etc/puppetlabs/puppet/crl/.
 func (r *EnvironmentReconciler) renderWebserverConf(env *openvoxv1alpha1.Environment) string {
+	return `webserver: {
+    client-auth: want
+    ssl-host: 0.0.0.0
+    ssl-port: 8140
+    ssl-cert: /etc/puppetlabs/puppet/ssl/certs/puppet.pem
+    ssl-key: /etc/puppetlabs/puppet/ssl/private_keys/puppet.pem
+    ssl-ca-cert: /etc/puppetlabs/puppet/ssl/certs/ca.pem
+    ssl-crl-path: /etc/puppetlabs/puppet/crl/ca_crl.pem
+}
+`
+}
+
+// renderWebserverConfCA returns the webserver.conf for CA servers.
+// CRL is read from the PVC-backed ssl directory, managed by Puppetserver itself.
+func (r *EnvironmentReconciler) renderWebserverConfCA(env *openvoxv1alpha1.Environment) string {
 	return `webserver: {
     client-auth: want
     ssl-host: 0.0.0.0
@@ -547,6 +568,14 @@ func (r *EnvironmentReconciler) renderAuthConf() string {
 `
 }
 
+func (r *EnvironmentReconciler) renderCAConf(ca *openvoxv1alpha1.CertificateAuthority) string {
+	allowSANs := true
+	if ca != nil {
+		allowSANs = ca.Spec.AllowSubjectAltNames
+	}
+	return fmt.Sprintf("certificate-authority: {\n    allow-subject-alt-names: %t\n}\n", allowSANs)
+}
+
 // --- Autosign Policy ---
 
 const autosignPolicyPath = "/etc/puppetlabs/puppet/autosign-policy.yaml"
@@ -655,6 +684,14 @@ func (r *EnvironmentReconciler) renderAutosignPolicyConfig(ctx context.Context, 
 			sb.WriteString("    pattern:\n")
 			sb.WriteString("      allow:\n")
 			for _, a := range p.Spec.Pattern.Allow {
+				fmt.Fprintf(&sb, "        - %q\n", a)
+			}
+		}
+
+		if p.Spec.DNSAltNames != nil {
+			sb.WriteString("    dnsAltNames:\n")
+			sb.WriteString("      allow:\n")
+			for _, a := range p.Spec.DNSAltNames.Allow {
 				fmt.Fprintf(&sb, "        - %q\n", a)
 			}
 		}

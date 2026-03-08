@@ -52,6 +52,13 @@ type CertificateAuthoritySpec struct {
 	// +optional
 	Storage StorageSpec `json:"storage,omitempty"`
 
+	// CRLRefreshInterval defines how often the operator fetches the CRL from the CA
+	// and updates the CRL Secret. Only applies to non-CA servers.
+	// Uses Go duration format: "5m", "1h", "30s".
+	// +kubebuilder:default="5m"
+	// +optional
+	CRLRefreshInterval string `json:"crlRefreshInterval,omitempty"`
+
 	// IntermediateCA configures an intermediate CA setup.
 	// +optional
 	IntermediateCA IntermediateCASpec `json:"intermediateCA,omitempty"`
@@ -74,7 +81,8 @@ type CertificateAuthorityStatus struct {
 	// +optional
 	Phase CertificateAuthorityPhase `json:"phase,omitempty"`
 
-	// CASecretName is the name of the Secret containing ca_crt.pem, ca_crl.pem, infra_crl.pem.
+	// CASecretName is the name of the Secret containing ca_crt.pem (public CA certificate).
+	// The CA private key is stored separately in {name}-ca-key, and CRLs in {name}-ca-crl.
 	// +optional
 	CASecretName string `json:"caSecretName,omitempty"`
 

@@ -127,12 +127,15 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 		{Name: "webserver-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/webserver.conf", SubPath: "webserver.conf", ReadOnly: true},
 		{Name: "product-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/product.conf", SubPath: "product.conf", ReadOnly: true},
 		{Name: "auth-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/auth.conf", SubPath: "auth.conf", ReadOnly: true},
+		{Name: "ca-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/ca.conf", SubPath: "ca.conf", ReadOnly: true},
 		{Name: "ca-cfg", MountPath: "/etc/puppetlabs/puppetserver/services.d/ca.cfg", SubPath: "ca.cfg", ReadOnly: true},
 	}
 
 	// SSL: emptyDir populated by init container from secret volumes.
 	// OpenVox needs full read-write on the ssl directory (creates subdirs, syncs CRL, sets permissions).
 	defaultMode := int32(0640)
+	crlSecretName := fmt.Sprintf("%s-ca-crl", ca.Name)
+
 	volumes := []corev1.Volume{
 		{Name: "ssl", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		{
@@ -156,9 +159,36 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 		configMapVolume("puppet-conf", configMapName, "puppet.conf"),
 		configMapVolume("puppetdb-conf", configMapName, "puppetdb.conf"),
 		configMapVolume("puppetserver-conf", configMapName, "puppetserver.conf"),
-		configMapVolume("webserver-conf", configMapName, "webserver.conf"),
 		configMapVolume("auth-conf", configMapName, "auth.conf"),
+		configMapVolume("ca-conf", configMapName, "ca.conf"),
 		configMapVolume("product-conf", configMapName, "product.conf"),
+	}
+
+	// Non-CA pods: mount CRL secret as directory (NOT SubPath) for kubelet auto-sync,
+	// and use the standard webserver.conf pointing to the CRL secret mount.
+	// CA pods: no CRL volume (Puppetserver manages CRL from PVC), use webserver-ca.conf.
+	if server.Spec.CA {
+		volumes = append(volumes,
+			configMapVolumeWithKey("webserver-conf", configMapName, "webserver-ca.conf", "webserver.conf"),
+		)
+	} else {
+		volumes = append(volumes,
+			configMapVolume("webserver-conf", configMapName, "webserver.conf"),
+			corev1.Volume{
+				Name: "ssl-ca-crl",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName:  crlSecretName,
+						DefaultMode: &defaultMode,
+					},
+				},
+			},
+		)
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "ssl-ca-crl",
+			MountPath: "/etc/puppetlabs/puppet/crl",
+			ReadOnly:  true,
+		})
 	}
 
 	// CA-specific: mount CA data PVC, use ca-enabled.cfg
@@ -265,15 +295,16 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 		},
 	}
 
-	// Init container populates the writable ssl emptyDir from secret volumes
+	// Init container populates the writable ssl emptyDir from secret volumes.
+	// CRL is NOT copied here — non-CA pods get it from a kubelet-synced secret mount,
+	// CA pods get it from the PVC at startup.
 	sslInitScript := `mkdir -p /ssl/certs /ssl/private_keys /ssl/public_keys /ssl/certificate_requests /ssl/private
 cp /ssl-cert/cert.pem /ssl/certs/puppet.pem
 cp /ssl-cert/key.pem /ssl/private_keys/puppet.pem
 cp /ssl-ca/ca_crt.pem /ssl/certs/ca.pem
-cp /ssl-ca/ca_crl.pem /ssl/crl.pem
 chmod 640 /ssl/private_keys/puppet.pem`
 	initContainer := corev1.Container{
-		Name:            "ssl-init",
+		Name:            "tls-init",
 		Image:           image,
 		ImagePullPolicy: env.Spec.Image.PullPolicy,
 		Command:         []string{"sh", "-c", sslInitScript},

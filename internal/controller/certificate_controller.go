@@ -110,7 +110,7 @@ func (r *CertificateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *openvoxv1alpha1.Certificate, ca *openvoxv1alpha1.CertificateAuthority) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	caServiceName := r.findCAServiceName(ctx, ca, cert.Namespace)
+	caServiceName := findCAServiceName(ctx, r.Client, ca, cert.Namespace)
 	if caServiceName == "" {
 		logger.Info("waiting for CA server to become available")
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -119,7 +119,7 @@ func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *
 	cert.Status.Phase = openvoxv1alpha1.CertificatePhaseRequesting
 	_ = r.Status().Update(ctx, cert)
 
-	certPEM, keyPEM, err := r.signCertificate(ctx, cert, caServiceName)
+	certPEM, keyPEM, err := r.signCertificate(ctx, cert, caServiceName, cert.Namespace)
 	if err != nil {
 		logger.Error(err, "certificate signing failed")
 		cert.Status.Phase = openvoxv1alpha1.CertificatePhaseError
@@ -189,47 +189,6 @@ func (r *CertificateReconciler) createOrUpdateTLSSecret(ctx context.Context, cer
 		"key.pem":  keyPEM,
 	}
 	return r.Update(ctx, secret)
-}
-
-// findCAServiceName discovers the CA service endpoint by:
-// 1. Finding a running Server with ca:true in the same environment
-// 2. Finding Pools whose selector matches that CA server
-// 3. Returning the first matching Pool name as service name
-func (r *CertificateReconciler) findCAServiceName(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, namespace string) string {
-	serverList := &openvoxv1alpha1.ServerList{}
-	if err := r.List(ctx, serverList, client.InNamespace(namespace)); err != nil {
-		return ""
-	}
-
-	var caServerName string
-	for _, server := range serverList.Items {
-		if server.Spec.EnvironmentRef == ca.Spec.EnvironmentRef && server.Spec.CA {
-			if server.Status.Phase == openvoxv1alpha1.ServerPhaseRunning {
-				caServerName = server.Name
-				break
-			}
-		}
-	}
-
-	if caServerName == "" {
-		return ""
-	}
-
-	poolList := &openvoxv1alpha1.PoolList{}
-	if err := r.List(ctx, poolList, client.InNamespace(namespace)); err != nil {
-		return ""
-	}
-
-	for _, pool := range poolList.Items {
-		if pool.Spec.EnvironmentRef != ca.Spec.EnvironmentRef {
-			continue
-		}
-		if pool.Spec.Selector[LabelServer] == caServerName || pool.Spec.Selector[LabelCA] == "true" {
-			return pool.Name
-		}
-	}
-
-	return ""
 }
 
 // adoptTLSSecret sets the ownerReference on the TLS Secret to this Certificate.

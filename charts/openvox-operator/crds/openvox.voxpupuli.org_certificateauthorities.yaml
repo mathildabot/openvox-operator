@@ -58,6 +58,13 @@ spec:
                 description: AllowSubjectAltNames controls whether SANs are allowed
                   in CSRs.
                 type: boolean
+              crlRefreshInterval:
+                default: 5m
+                description: |-
+                  CRLRefreshInterval defines how often the operator fetches the CRL from the CA
+                  and updates the CRL Secret. Only applies to non-CA servers.
+                  Uses Go duration format: "5m", "1h", "30s".
+                type: string
               environmentRef:
                 description: EnvironmentRef references the Environment this CA belongs
                   to.
@@ -104,8 +111,9 @@ spec:
               CertificateAuthority.
             properties:
               caSecretName:
-                description: CASecretName is the name of the Secret containing ca_crt.pem,
-                  ca_crl.pem, infra_crl.pem.
+                description: |-
+                  CASecretName is the name of the Secret containing ca_crt.pem (public CA certificate).
+                  The CA private key is stored separately in {name}-ca-key, and CRLs in {name}-ca-crl.
                 type: string
               conditions:
                 description: Conditions represent the latest available observations.
