@@ -5,7 +5,7 @@
 
 ## Prerequisites
 
-- Kubernetes 1.28+ or OpenShift 4.14+
+- Kubernetes or OpenShift cluster
 - Helm 3.x
 
 ## Install via Helm (OCI)
