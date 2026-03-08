@@ -209,47 +209,47 @@ func (r *EnvironmentReconciler) renderPuppetConf(env *openvoxv1alpha1.Environmen
 	sb.WriteString("manage_internal_file_permissions = false\n")
 
 	if env.Spec.Puppet.EnvironmentPath != "" {
-		sb.WriteString(fmt.Sprintf("environmentpath = %s\n", env.Spec.Puppet.EnvironmentPath))
+		fmt.Fprintf(&sb, "environmentpath = %s\n", env.Spec.Puppet.EnvironmentPath)
 	}
 
 	if env.Spec.Puppet.HieraConfig != "" {
-		sb.WriteString(fmt.Sprintf("hiera_config = %s\n", env.Spec.Puppet.HieraConfig))
+		fmt.Fprintf(&sb, "hiera_config = %s\n", env.Spec.Puppet.HieraConfig)
 	}
 
 	sb.WriteString("\n[server]\n")
 
 	if env.Spec.Puppet.EnvironmentTimeout != "" {
-		sb.WriteString(fmt.Sprintf("environment_timeout = %s\n", env.Spec.Puppet.EnvironmentTimeout))
+		fmt.Fprintf(&sb, "environment_timeout = %s\n", env.Spec.Puppet.EnvironmentTimeout)
 	}
 
 	if env.Spec.Puppet.Storeconfigs {
 		sb.WriteString("storeconfigs = true\n")
 		if env.Spec.Puppet.StoreBackend != "" {
-			sb.WriteString(fmt.Sprintf("storeconfigs_backend = %s\n", env.Spec.Puppet.StoreBackend))
+			fmt.Fprintf(&sb, "storeconfigs_backend = %s\n", env.Spec.Puppet.StoreBackend)
 		}
 	}
 
 	if env.Spec.Puppet.Reports != "" {
-		sb.WriteString(fmt.Sprintf("reports = %s\n", env.Spec.Puppet.Reports))
+		fmt.Fprintf(&sb, "reports = %s\n", env.Spec.Puppet.Reports)
 	}
 
 	if env.Spec.CA.TTL > 0 {
-		sb.WriteString(fmt.Sprintf("ca_ttl = %d\n", env.Spec.CA.TTL))
+		fmt.Fprintf(&sb, "ca_ttl = %d\n", env.Spec.CA.TTL)
 	}
 	if env.Spec.CA.Autosign != "" {
-		sb.WriteString(fmt.Sprintf("autosign = %s\n", env.Spec.CA.Autosign))
+		fmt.Fprintf(&sb, "autosign = %s\n", env.Spec.CA.Autosign)
 	}
 
 	if len(env.Spec.CA.DNSAltNames) > 0 {
-		sb.WriteString(fmt.Sprintf("dns_alt_names = %s\n", strings.Join(env.Spec.CA.DNSAltNames, ",")))
+		fmt.Fprintf(&sb, "dns_alt_names = %s\n", strings.Join(env.Spec.CA.DNSAltNames, ","))
 	}
 
 	if env.Spec.CA.Certname != "" {
-		sb.WriteString(fmt.Sprintf("certname = %s\n", env.Spec.CA.Certname))
+		fmt.Fprintf(&sb, "certname = %s\n", env.Spec.CA.Certname)
 	}
 
 	for k, v := range env.Spec.Puppet.ExtraConfig {
-		sb.WriteString(fmt.Sprintf("%s = %s\n", k, v))
+		fmt.Fprintf(&sb, "%s = %s\n", k, v)
 	}
 
 	return sb.String()
