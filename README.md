@@ -31,6 +31,30 @@ graph TD
     CN_D -->|mounts| Code_PVC
 ```
 
+### Pool Traffic Flow
+
+```mermaid
+graph LR
+    Agent1["🖥️ Agent"] --> LB
+    Agent2["🖥️ Agent"] --> LB
+    Agent3["🖥️ Agent"] --> LB
+
+    subgraph Kubernetes
+        LB["🌐 Pool: puppet<br/>Service (LoadBalancer)"]
+        CA_SVC["🔐 Pool: puppet-ca<br/>Service (ClusterIP)"]
+
+        LB --> S1["⚙️ Server: stable<br/>replica 1 - v8.12.1"]
+        LB --> S2["⚙️ Server: stable<br/>replica 2 - v8.12.1"]
+        LB --> S3["⚙️ Server: stable<br/>replica 3 - v8.12.1"]
+        LB --> C1["⚙️ Server: canary<br/>replica 1 - v8.13.0"]
+
+        CA_SVC --> CA["🔐 Server: ca<br/>replica 1"]
+        CA_SVC --> C1
+    end
+```
+
+The CA server is only reachable cluster-internally via ClusterIP. The `canary` server is member of both pools - it serves catalog requests from external agents via the LoadBalancer and handles CA requests internally.
+
 ## CRD Model
 
 All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
