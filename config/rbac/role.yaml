@@ -15,7 +15,11 @@ rules:
     verbs: ["update"]
   # Core resources
   - apiGroups: [""]
-    resources: ["configmaps", "secrets", "services", "persistentvolumeclaims", "endpoints"]
+    resources: ["configmaps", "secrets", "services", "serviceaccounts", "persistentvolumeclaims", "endpoints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # RBAC for CA setup job ServiceAccount
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Apps
   - apiGroups: ["apps"]

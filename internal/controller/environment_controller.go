@@ -8,6 +8,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -32,8 +33,9 @@ type EnvironmentReconciler struct {
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=environments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=environments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=environments/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=configmaps;secrets;services;persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=configmaps;secrets;services;serviceaccounts;persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -73,16 +75,21 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, fmt.Errorf("reconciling CA PVC: %w", err)
 	}
 
-	// Step 2b: Check if CA is initialized (marker Secret exists)
+	// Step 2b: Ensure CA setup RBAC exists
+	if err := r.reconcileCASetupRBAC(ctx, env); err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconciling CA setup RBAC: %w", err)
+	}
+
+	// Step 2c: Check if CA is initialized (Secret with ca_crt.pem exists)
 	caSecretName := fmt.Sprintf("%s-ca", env.Name)
 	caSecret := &corev1.Secret{}
-	caInitialized := true
+	caInitialized := false
 	if err := r.Get(ctx, types.NamespacedName{Name: caSecretName, Namespace: env.Namespace}, caSecret); err != nil {
-		if errors.IsNotFound(err) {
-			caInitialized = false
-		} else {
+		if !errors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
+	} else if _, ok := caSecret.Data["ca_crt.pem"]; ok {
+		caInitialized = true
 	}
 
 	if !caInitialized {
@@ -99,27 +106,8 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		if result.Requeue || result.RequeueAfter > 0 {
 			return result, nil
 		}
-
-		// Job succeeded — create CA marker Secret
-		logger.Info("CA setup complete, creating marker Secret")
-		markerSecret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      caSecretName,
-				Namespace: env.Namespace,
-				Labels:    environmentLabels(env.Name),
-			},
-			Data: map[string][]byte{
-				"initialized": []byte("true"),
-			},
-		}
-		if err := controllerutil.SetControllerReference(env, markerSecret, r.Scheme); err != nil {
-			return ctrl.Result{}, err
-		}
-		if err := r.Create(ctx, markerSecret); err != nil {
-			if !errors.IsAlreadyExists(err) {
-				return ctrl.Result{}, err
-			}
-		}
+		// Job succeeded — Secret should now exist (created by the job itself)
+		logger.Info("CA setup job completed, verifying Secret")
 	}
 
 	// Step 2c: CA Service
@@ -153,6 +141,7 @@ func (r *EnvironmentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&corev1.Service{}).
+		Owns(&corev1.ServiceAccount{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&batchv1.Job{}).
 		Complete(r)
@@ -342,11 +331,101 @@ func (r *EnvironmentReconciler) reconcileCAPVC(ctx context.Context, env *openvox
 	return err
 }
 
+// --- CA Setup RBAC ---
+
+func (r *EnvironmentReconciler) reconcileCASetupRBAC(ctx context.Context, env *openvoxv1alpha1.Environment) error {
+	saName := fmt.Sprintf("%s-ca-setup", env.Name)
+	roleName := saName
+	rbName := saName
+
+	// ServiceAccount
+	sa := &corev1.ServiceAccount{}
+	if err := r.Get(ctx, types.NamespacedName{Name: saName, Namespace: env.Namespace}, sa); errors.IsNotFound(err) {
+		sa = &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      saName,
+				Namespace: env.Namespace,
+				Labels:    environmentLabels(env.Name),
+			},
+		}
+		if err := controllerutil.SetControllerReference(env, sa, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.Create(ctx, sa); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	// Role — allow creating/updating Secrets in the namespace
+	role := &rbacv1.Role{}
+	if err := r.Get(ctx, types.NamespacedName{Name: roleName, Namespace: env.Namespace}, role); errors.IsNotFound(err) {
+		role = &rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      roleName,
+				Namespace: env.Namespace,
+				Labels:    environmentLabels(env.Name),
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{""},
+					Resources: []string{"secrets"},
+					Verbs:     []string{"get", "create", "update", "patch"},
+				},
+			},
+		}
+		if err := controllerutil.SetControllerReference(env, role, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.Create(ctx, role); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	// RoleBinding
+	rb := &rbacv1.RoleBinding{}
+	if err := r.Get(ctx, types.NamespacedName{Name: rbName, Namespace: env.Namespace}, rb); errors.IsNotFound(err) {
+		rb = &rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      rbName,
+				Namespace: env.Namespace,
+				Labels:    environmentLabels(env.Name),
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "Role",
+				Name:     roleName,
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      saName,
+					Namespace: env.Namespace,
+				},
+			},
+		}
+		if err := controllerutil.SetControllerReference(env, rb, r.Scheme); err != nil {
+			return err
+		}
+		if err := r.Create(ctx, rb); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // --- CA Setup Job ---
 
 func (r *EnvironmentReconciler) reconcileCASetupJob(ctx context.Context, env *openvoxv1alpha1.Environment) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	jobName := fmt.Sprintf("%s-ca-setup", env.Name)
+	desiredImage := fmt.Sprintf("%s:%s", env.Spec.Image.Repository, env.Spec.Image.Tag)
 
 	job := &batchv1.Job{}
 	err := r.Get(ctx, types.NamespacedName{Name: jobName, Namespace: env.Namespace}, job)
@@ -364,29 +443,125 @@ func (r *EnvironmentReconciler) reconcileCASetupJob(ctx context.Context, env *op
 		return ctrl.Result{}, err
 	}
 
+	// Check if the Job needs to be replaced (image changed)
+	currentImage := ""
+	if len(job.Spec.Template.Spec.Containers) > 0 {
+		currentImage = job.Spec.Template.Spec.Containers[0].Image
+	}
+
+	if currentImage != desiredImage {
+		logger.Info("deleting outdated CA setup job", "name", jobName, "reason", "image changed",
+			"currentImage", currentImage, "desiredImage", desiredImage)
+		propagation := metav1.DeletePropagationForeground
+		if err := r.Delete(ctx, job, &client.DeleteOptions{
+			PropagationPolicy: &propagation,
+		}); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
 	if job.Status.Succeeded > 0 {
 		logger.Info("CA setup job completed successfully")
 		return ctrl.Result{}, nil
 	}
 
-	if job.Status.Failed > 0 {
-		return ctrl.Result{}, fmt.Errorf("CA setup job failed")
+	// Check if the Job has permanently failed (all retries exhausted)
+	for _, c := range job.Status.Conditions {
+		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
+			logger.Info("CA setup job permanently failed, recreating", "name", jobName)
+			propagation := metav1.DeletePropagationForeground
+			if err := r.Delete(ctx, job, &client.DeleteOptions{
+				PropagationPolicy: &propagation,
+			}); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
 	}
 
-	return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	// Job still running or retrying — wait
+	return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 }
 
 func (r *EnvironmentReconciler) buildCASetupJob(env *openvoxv1alpha1.Environment, name string) *batchv1.Job {
 	image := fmt.Sprintf("%s:%s", env.Spec.Image.Repository, env.Spec.Image.Tag)
 	backoffLimit := int32(3)
+	saName := fmt.Sprintf("%s-ca-setup", env.Name)
+	caSecretName := fmt.Sprintf("%s-ca", env.Name)
 
-	setupScript := `#!/bin/bash
-set -euo pipefail
-echo "Starting CA setup..."
-puppetserver ca setup \
-    --config /etc/puppetlabs/puppetserver/conf.d
-echo "CA setup complete."
-`
+	var sb strings.Builder
+	sb.WriteString("#!/bin/bash\nset -euo pipefail\n\n")
+
+	// CA setup (idempotent)
+	sb.WriteString("if [ -f /etc/puppetlabs/puppetserver/ca/ca_crt.pem ]; then\n")
+	sb.WriteString("  echo \"CA already initialized, skipping setup.\"\nelse\n")
+	sb.WriteString("  echo \"Starting CA setup...\"\n  puppetserver ca setup \\\n")
+	sb.WriteString("      --config /etc/puppetlabs/puppet/puppet.conf")
+	if env.Spec.CA.Certname != "" {
+		fmt.Fprintf(&sb, " \\\n      --certname %s", env.Spec.CA.Certname)
+	}
+	if len(env.Spec.CA.DNSAltNames) > 0 {
+		fmt.Fprintf(&sb, " \\\n      --subject-alt-names %s", strings.Join(env.Spec.CA.DNSAltNames, ","))
+	}
+	sb.WriteString("\n  echo \"CA setup complete.\"\nfi\n\n")
+
+	// Create/update K8s Secret with CA public data
+	fmt.Fprintf(&sb, `# Create K8s Secret with CA public data
+NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+CA_API="https://kubernetes.default.svc/api/v1/namespaces/${NAMESPACE}/secrets"
+SECRET_NAME="%s"
+
+CA_CRT=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/ca_crt.pem)
+CA_CRL=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/ca_crl.pem)
+INFRA_CRL=$(base64 -w0 /etc/puppetlabs/puppetserver/ca/infra_crl.pem)
+
+PAYLOAD=$(cat <<ENDOFPAYLOAD
+{
+  "apiVersion": "v1",
+  "kind": "Secret",
+  "metadata": {
+    "name": "${SECRET_NAME}",
+    "namespace": "${NAMESPACE}",
+    "labels": {
+      "app.kubernetes.io/managed-by": "openvox-operator",
+      "app.kubernetes.io/name": "openvox",
+      "openvox.voxpupuli.org/environment": "%s"
+    }
+  },
+  "data": {
+    "ca_crt.pem": "${CA_CRT}",
+    "ca_crl.pem": "${CA_CRL}",
+    "infra_crl.pem": "${INFRA_CRL}"
+  }
+}
+ENDOFPAYLOAD
+)
+
+# Try PUT (update), fall back to POST (create) on 404
+HTTP_CODE=$(curl -sk -o /tmp/api-response -w '%%{http_code}' -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  "${CA_API}/${SECRET_NAME}" -d "$PAYLOAD")
+
+if [ "$HTTP_CODE" = "404" ]; then
+  HTTP_CODE=$(curl -sk -o /tmp/api-response -w '%%{http_code}' -X POST \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    "${CA_API}" -d "$PAYLOAD")
+fi
+
+if [ "${HTTP_CODE:0:1}" != "2" ]; then
+  echo "Failed to create/update CA Secret (HTTP ${HTTP_CODE}):" >&2
+  cat /tmp/api-response >&2
+  exit 1
+fi
+
+echo "CA Secret '${SECRET_NAME}' created/updated successfully."
+`, caSecretName, env.Name)
+
+	setupScript := sb.String()
 
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -401,7 +576,8 @@ echo "CA setup complete."
 					Labels: environmentLabels(env.Name),
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					ServiceAccountName: saName,
+					RestartPolicy:      corev1.RestartPolicyNever,
 					SecurityContext: &corev1.PodSecurityContext{
 						RunAsUser:    int64Ptr(1001),
 						RunAsGroup:   int64Ptr(0),
@@ -409,9 +585,10 @@ echo "CA setup complete."
 					},
 					Containers: []corev1.Container{
 						{
-							Name:    "ca-setup",
-							Image:   image,
-							Command: []string{"/bin/bash", "-c", setupScript},
+							Name:            "ca-setup",
+							Image:           image,
+							ImagePullPolicy: env.Spec.Image.PullPolicy,
+							Command:         []string{"/bin/bash", "-c", setupScript},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "ca-data",

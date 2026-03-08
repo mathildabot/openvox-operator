@@ -229,15 +229,39 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 			configMapVolumeWithKey("ca-cfg", configMapName, "ca-enabled.cfg", "ca.cfg"),
 		)
 	} else {
-		// Compiler: use ca-disabled.cfg
+		// Compiler: use ca-disabled.cfg, mount CA Secret for ca_crt.pem + CRL
+		caSecretName := fmt.Sprintf("%s-ca", server.Spec.EnvironmentRef)
+		volumeMounts = append(volumeMounts,
+			corev1.VolumeMount{
+				Name:      "ca-certs",
+				MountPath: "/etc/puppetlabs/puppet/ssl/certs/ca.pem",
+				SubPath:   "ca_crt.pem",
+				ReadOnly:  true,
+			},
+			corev1.VolumeMount{
+				Name:      "ca-certs",
+				MountPath: "/etc/puppetlabs/puppet/ssl/crl.pem",
+				SubPath:   "ca_crl.pem",
+				ReadOnly:  true,
+			},
+		)
 		volumes = append(volumes,
 			configMapVolumeWithKey("ca-cfg", configMapName, "ca-disabled.cfg", "ca.cfg"),
+			corev1.Volume{
+				Name: "ca-certs",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: caSecretName,
+					},
+				},
+			},
 		)
 	}
 
 	container := corev1.Container{
-		Name:  "openvox-server",
-		Image: image,
+		Name:            "openvox-server",
+		Image:           image,
+		ImagePullPolicy: env.Spec.Image.PullPolicy,
 		Env: []corev1.EnvVar{
 			{Name: "JAVA_ARGS", Value: javaArgs},
 		},

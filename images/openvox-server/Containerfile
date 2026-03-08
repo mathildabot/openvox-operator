@@ -169,6 +169,7 @@ ENV LOGDIR=/var/log/puppetlabs/puppetserver \
     PATH=$PATH:/opt/puppetlabs/server/bin:/opt/puppetlabs/puppet/bin:/opt/puppetlabs/bin
 
 # Copy built artifacts from build stage
+COPY --from=build /etc/sysconfig/puppetserver /etc/sysconfig/puppetserver
 COPY --from=build /opt/puppetlabs /opt/puppetlabs
 COPY --from=build /etc/puppetlabs /etc/puppetlabs
 COPY --from=build /var/log/puppetlabs /var/log/puppetlabs
@@ -183,8 +184,9 @@ COPY puppet.conf              /etc/puppetlabs/puppet/puppet.conf
 
 COPY entrypoint.sh /entrypoint.sh
 COPY healthcheck.sh /healthcheck.sh
+COPY cli-ca.sh /opt/puppetlabs/server/apps/puppetserver/cli/apps/ca
 
-RUN chmod +x /entrypoint.sh /healthcheck.sh
+RUN chmod +x /entrypoint.sh /healthcheck.sh /opt/puppetlabs/server/apps/puppetserver/cli/apps/ca
 
 # Set HOME explicitly: random UIDs (OpenShift) default HOME to "/"
 ENV HOME=/opt/puppetlabs/server/data/puppetserver
