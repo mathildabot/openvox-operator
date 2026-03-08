@@ -163,6 +163,7 @@ func (r *EnvironmentReconciler) reconcileConfigMap(ctx context.Context, env *ope
 		"puppetdb.conf":     r.renderPuppetDBConf(env),
 		"webserver.conf":    r.renderWebserverConf(env),
 		"puppetserver.conf": r.renderPuppetserverConf(env),
+		"auth.conf":         r.renderAuthConf(),
 		"product.conf":      "product: {\n    check-for-updates: false\n}\n",
 		"ca-enabled.cfg":    "puppetlabs.services.ca.certificate-authority-service/certificate-authority-service\npuppetlabs.trapperkeeper.services.watcher.filesystem-watch-service/filesystem-watch-service\n",
 		"ca-disabled.cfg":   "puppetlabs.services.ca.certificate-authority-disabled-service/certificate-authority-disabled-service\npuppetlabs.trapperkeeper.services.watcher.filesystem-watch-service/filesystem-watch-service\n",
@@ -259,6 +260,7 @@ func (r *EnvironmentReconciler) renderPuppetDBConf(env *openvoxv1alpha1.Environm
 
 func (r *EnvironmentReconciler) renderWebserverConf(env *openvoxv1alpha1.Environment) string {
 	return `webserver: {
+    client-auth: want
     ssl-host: 0.0.0.0
     ssl-port: 8140
     ssl-cert: /etc/puppetlabs/puppet/ssl/certs/puppet.pem
@@ -291,6 +293,287 @@ profiler: {
 
 dropsonde: {
     enabled: false
+}
+`
+}
+
+func (r *EnvironmentReconciler) renderAuthConf() string {
+	return `authorization: {
+    version: 1
+    rules: [
+        {
+            match-request: {
+                path: "^/puppet/v3/catalog/([^/]+)$"
+                type: regex
+                method: [get, post]
+            }
+            allow: "$1"
+            sort-order: 500
+            name: "puppetlabs v3 catalog from agents"
+        },
+        {
+            match-request: {
+                path: "^/puppet/v4/catalog/?$"
+                type: regex
+                method: post
+            }
+            deny: "*"
+            sort-order: 500
+            name: "puppetlabs v4 catalog for services"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/certificate/"
+                type: path
+                method: get
+            }
+            allow-unauthenticated: true
+            sort-order: 500
+            name: "puppetlabs certificate"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/certificate_revocation_list/ca"
+                type: path
+                method: get
+            }
+            allow-unauthenticated: true
+            sort-order: 500
+            name: "puppetlabs crl"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/certificate_request"
+                type: path
+                method: [get, put]
+            }
+            allow-unauthenticated: true
+            sort-order: 500
+            name: "puppetlabs csr"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/certificate_renewal"
+                type: path
+                method: post
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppetlabs certificate renewal"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/certificate_status"
+                type: path
+                method: [get, put, delete]
+            }
+            allow: {
+               extensions: {
+                   pp_cli_auth: "true"
+               }
+            }
+            sort-order: 500
+            name: "puppetlabs cert status"
+        },
+        {
+            match-request: {
+                path: "^/puppet-ca/v1/certificate_revocation_list$"
+                type: regex
+                method: put
+            }
+            allow: {
+               extensions: {
+                   pp_cli_auth: "true"
+               }
+            }
+            sort-order: 500
+            name: "puppetlabs CRL update"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/certificate_statuses"
+                type: path
+                method: get
+            }
+            allow: {
+               extensions: {
+                   pp_cli_auth: "true"
+               }
+            }
+            sort-order: 500
+            name: "puppetlabs cert statuses"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/expirations"
+                type: path
+                method: get
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppetlabs CA cert and CRL expirations"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/clean"
+                type: path
+                method: put
+            }
+            allow: {
+               extensions: {
+                   pp_cli_auth: "true"
+               }
+            }
+            sort-order: 500
+            name: "puppetlabs cert clean"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/sign"
+                type: path
+                method: post
+            }
+            allow: {
+               extensions: {
+                   pp_cli_auth: "true"
+               }
+            }
+            sort-order: 500
+            name: "puppetlabs cert sign"
+        },
+        {
+            match-request: {
+                path: "/puppet-ca/v1/sign/all"
+                type: path
+                method: post
+            }
+            allow: {
+               extensions: {
+                   pp_cli_auth: "true"
+               }
+            }
+            sort-order: 500
+            name: "puppetlabs cert sign all"
+        },
+        {
+            match-request: {
+                path: "/status/v1/services"
+                type: path
+                method: get
+            }
+            allow-unauthenticated: true
+            sort-order: 500
+            name: "puppetlabs status service - full"
+        },
+        {
+            match-request: {
+                path: "/status/v1/simple"
+                type: path
+                method: get
+            }
+            allow-unauthenticated: true
+            sort-order: 500
+            name: "puppetlabs status service - simple"
+        },
+        {
+            match-request: {
+                path: "/puppet/v3/environments"
+                type: path
+                method: get
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppetlabs environments"
+        },
+        {
+            match-request: {
+                path: "/puppet/v3/file_bucket_file"
+                type: path
+                method: [get, head, post, put]
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppetlabs file bucket file"
+        },
+        {
+            match-request: {
+                path: "/puppet/v3/file_content"
+                type: path
+                method: [get, post]
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppetlabs file content"
+        },
+        {
+            match-request: {
+                path: "/puppet/v3/file_metadata"
+                type: path
+                method: [get, post]
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppetlabs file metadata"
+        },
+        {
+            match-request: {
+                path: "^/puppet/v3/node/([^/]+)$"
+                type: regex
+                method: get
+            }
+            allow: "$1"
+            sort-order: 500
+            name: "puppetlabs node"
+        },
+        {
+            match-request: {
+                path: "^/puppet/v3/report/([^/]+)$"
+                type: regex
+                method: put
+            }
+            allow: "$1"
+            sort-order: 500
+            name: "puppetlabs report"
+        },
+        {
+            match-request: {
+                path: "^/puppet/v3/facts/([^/]+)$"
+                type: regex
+                method: put
+            }
+            allow: "$1"
+            sort-order: 500
+            name: "puppetlabs facts"
+        },
+        {
+            match-request: {
+                path: "/puppet/v3/static_file_content"
+                type: path
+                method: get
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppetlabs static file content"
+        },
+        {
+            match-request: {
+                path: "/puppet/v3/tasks"
+                type: path
+            }
+            allow: "*"
+            sort-order: 500
+            name: "puppet tasks information"
+        },
+        {
+            match-request: {
+                path: "/"
+                type: path
+            }
+            deny: "*"
+            sort-order: 999
+            name: "puppetlabs deny all"
+        }
+    ]
 }
 `
 }

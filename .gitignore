@@ -1,4 +1,7 @@
 *.tar.gz
 *.jar
+*.swp
 .env
 AGENT.md
+bin/
+cover.out

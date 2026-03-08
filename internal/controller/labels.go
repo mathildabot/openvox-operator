@@ -8,8 +8,8 @@ const (
 	LabelRole        = "openvox.voxpupuli.org/role"
 
 	// Role values.
-	RoleCA       = "ca"
-	RoleCompiler = "compiler"
+	RoleCA     = "ca"
+	RoleServer = "server"
 )
 
 // environmentLabels returns labels for resources owned by an Environment.

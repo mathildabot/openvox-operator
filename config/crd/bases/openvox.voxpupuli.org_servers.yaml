@@ -102,13 +102,6 @@ spec:
                 required:
                 - claimName
                 type: object
-              compiler:
-                default: true
-                description: |-
-                  Compiler enables the compiler role on this Server.
-                  Servers are compilers by default.
-                  A Server with both CA and Compiler serves as a combined CA+compiler.
-                type: boolean
               dnsAltNames:
                 description: DNSAltNames is a list of DNS alternative names for the
                   server certificate.
@@ -235,6 +228,12 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              server:
+                default: true
+                description: |-
+                  Server enables the server role (catalog compilation, file serving).
+                  A Server with both CA and Server serves as a combined CA+server.
+                type: boolean
             required:
             - environmentRef
             type: object

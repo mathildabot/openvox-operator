@@ -117,9 +117,10 @@ func (r *PoolReconciler) reconcileService(ctx context.Context, pool *openvoxv1al
 				Annotations: pool.Spec.Service.Annotations,
 			},
 			Spec: corev1.ServiceSpec{
-				Type:     svcType,
-				Selector: poolSelector(pool.Name),
-				Ports:    []corev1.ServicePort{svcPort},
+				Type:        svcType,
+				Selector:    poolSelector(pool.Name),
+				Ports:       []corev1.ServicePort{svcPort},
+				ExternalIPs: pool.Spec.Service.ExternalIPs,
 			},
 		}
 
@@ -162,6 +163,7 @@ func (r *PoolReconciler) reconcileService(ctx context.Context, pool *openvoxv1al
 	if pool.Spec.Service.NodePort > 0 {
 		svc.Spec.Ports[0].NodePort = pool.Spec.Service.NodePort
 	}
+	svc.Spec.ExternalIPs = pool.Spec.Service.ExternalIPs
 	return r.Update(ctx, svc)
 }
 

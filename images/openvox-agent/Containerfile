@@ -1,0 +1,15 @@
+# Minimal OpenVox Agent for testing against openvox-operator
+#
+# Build:
+#   podman build -t openvox-agent:latest images/openvox-agent/
+#
+# Run:
+#   podman run --rm openvox-agent:latest agent --test --server puppet
+
+FROM registry.access.redhat.com/ubi9/ubi:9.7-1771346757
+
+RUN rpm -Uvh https://yum.voxpupuli.org/openvox8-release-el-9.noarch.rpm \
+    && dnf install -y --setopt=install_weak_deps=False openvox-agent \
+    && dnf clean all
+
+ENTRYPOINT ["/opt/puppetlabs/bin/puppet"]

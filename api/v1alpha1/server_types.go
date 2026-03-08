@@ -53,12 +53,11 @@ type ServerSpec struct {
 	// +optional
 	CA bool `json:"ca,omitempty"`
 
-	// Compiler enables the compiler role on this Server.
-	// Servers are compilers by default.
-	// A Server with both CA and Compiler serves as a combined CA+compiler.
+	// Server enables the server role (catalog compilation, file serving).
+	// A Server with both CA and Server serves as a combined CA+server.
 	// +kubebuilder:default=true
 	// +optional
-	Compiler bool `json:"compiler,omitempty"`
+	Server bool `json:"server,omitempty"`
 
 	// Replicas is the number of Server instances.
 	// +kubebuilder:default=1

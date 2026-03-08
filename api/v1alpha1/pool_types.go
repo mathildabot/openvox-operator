@@ -65,6 +65,11 @@ type PoolServiceSpec struct {
 	// Labels are additional labels for the Service.
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
+
+	// ExternalIPs is a list of IP addresses for which nodes in the cluster
+	// will also accept traffic for this service.
+	// +optional
+	ExternalIPs []string `json:"externalIPs,omitempty"`
 }
 
 // PoolStatus defines the observed state of Pool.

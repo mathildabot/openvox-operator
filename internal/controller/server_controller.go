@@ -121,7 +121,7 @@ func (r *ServerReconciler) reconcileDeployment(ctx context.Context, server *open
 	javaArgs := resolveJavaArgs(server)
 
 	// Determine role
-	role := RoleCompiler
+	role := RoleServer
 	if server.Spec.CA {
 		role = RoleCA
 	}
@@ -192,6 +192,7 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 		{Name: "puppetserver-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/puppetserver.conf", SubPath: "puppetserver.conf", ReadOnly: true},
 		{Name: "webserver-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/webserver.conf", SubPath: "webserver.conf", ReadOnly: true},
 		{Name: "product-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/product.conf", SubPath: "product.conf", ReadOnly: true},
+		{Name: "auth-conf", MountPath: "/etc/puppetlabs/puppetserver/conf.d/auth.conf", SubPath: "auth.conf", ReadOnly: true},
 		{Name: "ca-cfg", MountPath: "/etc/puppetlabs/puppetserver/services.d/ca.cfg", SubPath: "ca.cfg", ReadOnly: true},
 	}
 
@@ -201,6 +202,7 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 		configMapVolume("puppetdb-conf", configMapName, "puppetdb.conf"),
 		configMapVolume("puppetserver-conf", configMapName, "puppetserver.conf"),
 		configMapVolume("webserver-conf", configMapName, "webserver.conf"),
+		configMapVolume("auth-conf", configMapName, "auth.conf"),
 		configMapVolume("product-conf", configMapName, "product.conf"),
 	}
 
@@ -222,7 +224,7 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 			configMapVolumeWithKey("ca-cfg", configMapName, "ca-enabled.cfg", "ca.cfg"),
 		)
 	} else {
-		// Compiler: use ca-disabled.cfg, mount CA Secret for ca_crt.pem + CRL
+		// Non-CA server: use ca-disabled.cfg, mount CA Secret for ca_crt.pem + CRL
 		caSecretName := fmt.Sprintf("%s-ca", server.Spec.EnvironmentRef)
 		volumeMounts = append(volumeMounts,
 			corev1.VolumeMount{
@@ -312,7 +314,7 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 		Volumes:    volumes,
 	}
 
-	// Compilers need an InitContainer for SSL bootstrap against CA
+	// Non-CA servers need an InitContainer for SSL bootstrap against CA
 	if !server.Spec.CA {
 		caServiceName := fmt.Sprintf("%s-ca", server.Spec.EnvironmentRef)
 		podSpec.InitContainers = []corev1.Container{

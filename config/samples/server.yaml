@@ -2,7 +2,7 @@
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: Server
 metadata:
-  name: compiler
+  name: stable
   namespace: openvox-system
 spec:
   environmentRef: production

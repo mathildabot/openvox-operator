@@ -3,8 +3,8 @@
 A Kubernetes Operator for running [OpenVox Server](https://github.com/OpenVoxProject) environments on **Kubernetes** and **OpenShift**.
 
 - 🔐 **Automated CA Lifecycle** - CA initialization, certificate signing and distribution - fully managed
-- 📦 **One Image, Two Roles** - Same rootless image runs as CA or compiler, configured by the operator
-- ⚡ **Scalable Compilers** - Scale catalog compilation horizontally - multiple server pools with HPA
+- 📦 **One Image, Two Roles** - Same rootless image runs as CA or server, configured by the operator
+- ⚡ **Scalable Servers** - Scale catalog compilation horizontally - multiple server pools with HPA
 - 🔄 **Multi-Version Deployments** - Run different server versions side by side - canary deployments, rolling upgrades
 - 🔒 **Rootless & OpenShift Ready** - Random UID compatible, no root, no ezbake, no privilege escalation
 - ☸️ **Kubernetes-Native** - All config via ConfigMaps/Secrets - no entrypoint scripts, no ENV translation
@@ -17,9 +17,9 @@ graph TD
     Op -->|manages| Env
 
     Env["📋 Environment CRD<br/>production"]
-    Env --> CA["🔐 Server CRD: ca<br/>role: ca + compiler"]
-    Env --> Stable["⚙️ Server CRD: stable<br/>role: compiler - v8.8.1"]
-    Env --> Canary["⚙️ Server CRD: canary<br/>role: compiler - v8.9.0"]
+    Env --> CA["🔐 Server CRD: ca<br/>role: ca + server"]
+    Env --> Stable["⚙️ Server CRD: stable<br/>role: server - v8.8.1"]
+    Env --> Canary["⚙️ Server CRD: canary<br/>role: server - v8.9.0"]
 
     CA --> CA_D["Deployment"]
     Stable --> ST_D["Deployment"]
@@ -79,8 +79,8 @@ This operator takes a **Kubernetes-native approach** that differs in several key
 | **Configuration** | `puppet.conf` managed via `puppet config set`, Puppet modules, or config management | Declarative CRDs, operator renders ConfigMaps and Secrets |
 | **Privileges** | Requires root | Fully rootless, random UID compatible |
 | **CA Management** | `puppetserver ca` CLI with CRuby shebang | Custom JRuby wrapper that routes through `clojure.main` |
-| **Certificates** | Each compiler has its own certificate | All replicas of a `Server` share the same certificate, enabling seamless horizontal scaling |
-| **Scaling** | Horizontal scaling possible but requires manual setup of additional compiler VMs | Horizontal via Deployment replicas and HPA |
+| **Certificates** | Each server has its own certificate | All replicas of a `Server` share the same certificate, enabling seamless horizontal scaling |
+| **Scaling** | Horizontal scaling possible but requires manual setup of additional server VMs | Horizontal via Deployment replicas and HPA |
 | **Code Deployment** | r10k installed on the VM, triggered by cron or webhook | `CodeDeploy` CRD manages r10k as a Kubernetes Job/CronJob |
 | **Multi-Version** | Separate VMs or manual package pinning | Multiple `Server` CRDs in the same `Pool` with different image tags |
 
@@ -108,11 +108,11 @@ spec:
   environmentRef: lab
   ca:
     enabled: true
-    compiler: true     # CA also compiles catalogs
+    server: true     # CA also serves catalogs
   replicas: 1
 ```
 
-### Production - CA + Compiler Pool + Canary
+### Production - CA + Server Pool + Canary
 
 ```yaml
 apiVersion: openvox.voxpupuli.org/v1alpha1

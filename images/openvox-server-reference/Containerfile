@@ -1,0 +1,11 @@
+# Reference OpenVox Server image installed via RPM
+# Used to compare default configs against our custom image
+#
+# Build:
+#   podman build -t openvox-server-reference:latest images/openvox-server-reference/
+
+FROM registry.access.redhat.com/ubi9/ubi:9.7-1771346757
+
+RUN rpm -Uvh https://yum.voxpupuli.org/openvox8-release-el-9.noarch.rpm \
+    && dnf install -y --setopt=install_weak_deps=False openvox-server \
+    && dnf clean all
