@@ -17,7 +17,15 @@
   "packageRules": [
     {
       "matchManagers": ["gomod"],
-      "groupName": "Go dependencies"
+      "groupName": "Go dependencies",
+      "postUpgradeTasks": {
+        "commands": [
+          "go mod tidy",
+          "make generate manifests"
+        ],
+        "fileFilters": ["go.mod", "go.sum", "api/**", "config/crd/**", "charts/openvox-operator/crds/**"],
+        "executionMode": "branch"
+      }
     },
     {
       "matchManagers": ["github-actions"],
