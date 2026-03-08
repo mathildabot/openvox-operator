@@ -124,15 +124,6 @@ type ImageSpec struct {
 
 // CASpec defines the Certificate Authority configuration.
 type CASpec struct {
-	// Certname is the CA server's certificate name.
-	// +kubebuilder:default="puppet"
-	// +optional
-	Certname string `json:"certname,omitempty"`
-
-	// DNSAltNames is a list of DNS alternative names for the CA certificate.
-	// +optional
-	DNSAltNames []string `json:"dnsAltNames,omitempty"`
-
 	// TTL is the CA certificate TTL in seconds.
 	// +kubebuilder:default=157680000
 	// +optional

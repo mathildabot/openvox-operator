@@ -11,8 +11,7 @@ CLASSPATH=${INSTALL_DIR}/puppet-server-release.jar
 
 if [ -e "$cli_defaults" ]; then
   # shellcheck disable=SC1090
-  . "$cli_defaults"
-  if [ $? -ne 0 ]; then
+  if ! . "$cli_defaults"; then
     echo "Unable to initialize cli defaults, failing ca subcommand." 1>&2
     exit 1
   fi

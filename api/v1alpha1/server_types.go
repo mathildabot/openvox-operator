@@ -86,6 +86,11 @@ type ServerSpec struct {
 	// +optional
 	Code *CodeSpec `json:"code,omitempty"`
 
+	// Certname is the certificate name for this Server.
+	// Defaults to the Server's name if not set.
+	// +optional
+	Certname string `json:"certname,omitempty"`
+
 	// DNSAltNames is a list of DNS alternative names for the server certificate.
 	// +optional
 	DNSAltNames []string `json:"dnsAltNames,omitempty"`

@@ -98,6 +98,7 @@ func (r *ServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&openvoxv1alpha1.Server{}).
 		Owns(&appsv1.Deployment{}).
+		Watches(&corev1.Secret{}, enqueueServersForSecret(mgr.GetClient())).
 		Complete(r)
 }
 
@@ -145,13 +146,19 @@ func (r *ServerReconciler) reconcileDeployment(ctx context.Context, server *open
 
 	configMapName := fmt.Sprintf("%s-config", server.Spec.EnvironmentRef)
 
-	// Compute ConfigMap hash for automatic rollout on config changes
+	// Compute hashes for automatic rollout on config/secret changes
 	configHash, err := r.configMapHash(ctx, configMapName, server.Namespace)
 	if err != nil {
 		return fmt.Errorf("computing ConfigMap hash: %w", err)
 	}
+	caSecretName := fmt.Sprintf("%s-ca", server.Spec.EnvironmentRef)
+	secretHash, err := r.secretHash(ctx, caSecretName, server.Namespace)
+	if err != nil {
+		return fmt.Errorf("computing CA Secret hash: %w", err)
+	}
 	annotations := map[string]string{
 		"openvox.voxpupuli.org/config-hash": configHash,
+		"openvox.voxpupuli.org/secret-hash": secretHash,
 	}
 
 	deploy := &appsv1.Deployment{}
@@ -418,15 +425,32 @@ func configMapVolumeWithKey(volumeName, cmName, key, path string) corev1.Volume 
 }
 
 // configMapHash computes a deterministic SHA256 hash of a ConfigMap's data.
-// Used as a pod template annotation to trigger rollouts on config changes.
 func (r *ServerReconciler) configMapHash(ctx context.Context, name, namespace string) (string, error) {
 	cm := &corev1.ConfigMap{}
 	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, cm); err != nil {
 		return "", err
 	}
+	return hashStringMap(cm.Data), nil
+}
 
-	keys := make([]string, 0, len(cm.Data))
-	for k := range cm.Data {
+// secretHash computes a deterministic SHA256 hash of a Secret's data.
+func (r *ServerReconciler) secretHash(ctx context.Context, name, namespace string) (string, error) {
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, secret); err != nil {
+		return "", err
+	}
+	// Convert []byte values to string for hashing
+	data := make(map[string]string, len(secret.Data))
+	for k, v := range secret.Data {
+		data[k] = string(v)
+	}
+	return hashStringMap(data), nil
+}
+
+// hashStringMap computes a deterministic SHA256 hash of a map[string]string.
+func hashStringMap(data map[string]string) string {
+	keys := make([]string, 0, len(data))
+	for k := range data {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
@@ -434,7 +458,7 @@ func (r *ServerReconciler) configMapHash(ctx context.Context, name, namespace st
 	h := sha256.New()
 	for _, k := range keys {
 		h.Write([]byte(k))
-		h.Write([]byte(cm.Data[k]))
+		h.Write([]byte(data[k]))
 	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
