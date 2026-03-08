@@ -655,7 +655,7 @@ func (r *EnvironmentReconciler) renderAutosignPolicyConfig(ctx context.Context, 
 			sb.WriteString("    pattern:\n")
 			sb.WriteString("      allow:\n")
 			for _, a := range p.Spec.Pattern.Allow {
-				sb.WriteString(fmt.Sprintf("        - %q\n", a))
+				fmt.Fprintf(&sb, "        - %q\n", a)
 			}
 		}
 
@@ -672,8 +672,8 @@ func (r *EnvironmentReconciler) renderAutosignPolicyConfig(ctx context.Context, 
 						return "", fmt.Errorf("resolving csrAttribute %q for policy %s: %w", attr.Name, p.Name, err)
 					}
 				}
-				sb.WriteString(fmt.Sprintf("      - name: %s\n", attr.Name))
-				sb.WriteString(fmt.Sprintf("        value: %q\n", value))
+				fmt.Fprintf(&sb, "      - name: %s\n", attr.Name)
+				fmt.Fprintf(&sb, "        value: %q\n", value)
 			}
 		}
 	}
