@@ -35,10 +35,13 @@ type CertificateAuthoritySpec struct {
 	// EnvironmentRef references the Environment this CA belongs to.
 	EnvironmentRef string `json:"environmentRef"`
 
-	// TTL is the CA certificate TTL in seconds.
-	// +kubebuilder:default=157680000
+	// TTL is the CA certificate TTL as a duration string.
+	// Supported units: s (seconds), m (minutes), h (hours), d (days), y (years).
+	// Examples: "5y", "365d", "8760h", "157680000s"
+	// Plain numbers are interpreted as seconds for backwards compatibility.
+	// +kubebuilder:default="5y"
 	// +optional
-	TTL int64 `json:"ttl,omitempty"`
+	TTL string `json:"ttl,omitempty"`
 
 	// AllowSubjectAltNames controls whether SANs are allowed in CSRs.
 	// +kubebuilder:default=true

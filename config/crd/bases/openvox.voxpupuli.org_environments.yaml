@@ -28,7 +28,7 @@ spec:
       openAPIV3Schema:
         description: |-
           Environment is the Schema for the environments API.
-          It manages shared configuration, CA lifecycle, and PuppetDB connection.
+          It manages shared configuration (puppet.conf, auth.conf) and PuppetDB connection.
         properties:
           apiVersion:
             description: |-
@@ -50,64 +50,6 @@ spec:
           spec:
             description: EnvironmentSpec defines the desired state of Environment.
             properties:
-              ca:
-                description: CA defines the Certificate Authority configuration.
-                properties:
-                  allowSubjectAltNames:
-                    default: true
-                    description: AllowSubjectAltNames controls whether SANs are allowed
-                      in CSRs.
-                    type: boolean
-                  autosign:
-                    default: "true"
-                    description: |-
-                      Autosign controls certificate autosigning.
-                      Can be "true", "false", or a path to an autosign script.
-                    type: string
-                  intermediateCA:
-                    description: IntermediateCA configures an intermediate CA setup.
-                    properties:
-                      enabled:
-                        default: false
-                        description: Enabled activates intermediate CA mode.
-                        type: boolean
-                      secretName:
-                        description: SecretName is the name of the Secret containing
-                          ca.pem, key.pem, crl.pem.
-                        type: string
-                    required:
-                    - enabled
-                    type: object
-                  storage:
-                    description: Storage defines the PVC settings for CA data.
-                    properties:
-                      size:
-                        default: 1Gi
-                        description: Size is the requested storage size.
-                        type: string
-                      storageClass:
-                        description: StorageClass is the storage class name. Empty
-                          means default.
-                        type: string
-                    type: object
-                  ttl:
-                    default: 157680000
-                    description: TTL is the CA certificate TTL in seconds.
-                    format: int64
-                    type: integer
-                type: object
-              code:
-                description: |-
-                  Code defines the PVC for Puppet code (environments directory).
-                  All Servers in this Environment mount this PVC by default.
-                properties:
-                  claimName:
-                    description: ClaimName is the name of an existing PVC containing
-                      Puppet code.
-                    type: string
-                required:
-                - claimName
-                type: object
               image:
                 description: Image defines the default container image for all Servers
                   in this Environment.

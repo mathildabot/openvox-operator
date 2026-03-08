@@ -91,8 +91,13 @@ func (r *EnvironmentReconciler) reconcileConfigMap(ctx context.Context, env *ope
 	logger := log.FromContext(ctx)
 	configMapName := fmt.Sprintf("%s-config", env.Name)
 
+	puppetConf, err := r.renderPuppetConf(ctx, env)
+	if err != nil {
+		return fmt.Errorf("rendering puppet.conf: %w", err)
+	}
+
 	data := map[string]string{
-		"puppet.conf":       r.renderPuppetConf(env),
+		"puppet.conf":       puppetConf,
 		"puppetdb.conf":     r.renderPuppetDBConf(env),
 		"webserver.conf":    r.renderWebserverConf(env),
 		"puppetserver.conf": r.renderPuppetserverConf(env),
@@ -103,7 +108,7 @@ func (r *EnvironmentReconciler) reconcileConfigMap(ctx context.Context, env *ope
 	}
 
 	cm := &corev1.ConfigMap{}
-	err := r.Get(ctx, types.NamespacedName{Name: configMapName, Namespace: env.Namespace}, cm)
+	err = r.Get(ctx, types.NamespacedName{Name: configMapName, Namespace: env.Namespace}, cm)
 	if errors.IsNotFound(err) {
 		logger.Info("creating ConfigMap", "name", configMapName)
 		cm = &corev1.ConfigMap{
@@ -126,7 +131,20 @@ func (r *EnvironmentReconciler) reconcileConfigMap(ctx context.Context, env *ope
 	return r.Update(ctx, cm)
 }
 
-func (r *EnvironmentReconciler) renderPuppetConf(env *openvoxv1alpha1.Environment) string {
+func (r *EnvironmentReconciler) findCertificateAuthority(ctx context.Context, env *openvoxv1alpha1.Environment) *openvoxv1alpha1.CertificateAuthority {
+	caList := &openvoxv1alpha1.CertificateAuthorityList{}
+	if err := r.List(ctx, caList, client.InNamespace(env.Namespace)); err != nil {
+		return nil
+	}
+	for i := range caList.Items {
+		if caList.Items[i].Spec.EnvironmentRef == env.Name {
+			return &caList.Items[i]
+		}
+	}
+	return nil
+}
+
+func (r *EnvironmentReconciler) renderPuppetConf(ctx context.Context, env *openvoxv1alpha1.Environment) (string, error) {
 	var sb strings.Builder
 	sb.WriteString("[main]\n")
 	sb.WriteString("confdir = /etc/puppetlabs/puppet\n")
@@ -161,18 +179,27 @@ func (r *EnvironmentReconciler) renderPuppetConf(env *openvoxv1alpha1.Environmen
 		fmt.Fprintf(&sb, "reports = %s\n", env.Spec.Puppet.Reports)
 	}
 
-	if env.Spec.CA.TTL > 0 {
-		fmt.Fprintf(&sb, "ca_ttl = %d\n", env.Spec.CA.TTL)
-	}
-	if env.Spec.CA.Autosign != "" {
-		fmt.Fprintf(&sb, "autosign = %s\n", env.Spec.CA.Autosign)
+	// CA settings from CertificateAuthority (if one exists for this Environment)
+	if ca := r.findCertificateAuthority(ctx, env); ca != nil {
+		if ca.Spec.TTL != "" {
+			ttlSeconds, err := openvoxv1alpha1.ParseDurationToSeconds(ca.Spec.TTL)
+			if err != nil {
+				return "", fmt.Errorf("parsing CA TTL: %w", err)
+			}
+			if ttlSeconds > 0 {
+				fmt.Fprintf(&sb, "ca_ttl = %d\n", ttlSeconds)
+			}
+		}
+		if ca.Spec.Autosign != "" {
+			fmt.Fprintf(&sb, "autosign = %s\n", ca.Spec.Autosign)
+		}
 	}
 
 	for k, v := range env.Spec.Puppet.ExtraConfig {
 		fmt.Fprintf(&sb, "%s = %s\n", k, v)
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }
 
 func (r *EnvironmentReconciler) renderPuppetDBConf(env *openvoxv1alpha1.Environment) string {
