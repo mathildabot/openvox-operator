@@ -50,7 +50,7 @@ graph LR
     end
 ```
 
-The CA server is member of both pools - it handles CA requests via the `puppet-ca` service and also serves catalog requests from external agents via the `puppet` service.
+The CA server can be member of both pools - it handles CA requests via the `puppet-ca` service and can also serve catalog requests from external agents via the `puppet` service.
 
 ## CRD Model
 
