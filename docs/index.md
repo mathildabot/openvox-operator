@@ -54,7 +54,7 @@ graph LR
 
     subgraph Kubernetes
         LB["Pool: puppet<br/>Service (LoadBalancer)"]
-        CA_SVC["CA Service<br/>(ClusterIP)"]
+        CA_SVC["CA Service<br/>(LoadBalancer)"]
 
         LB --> CA["Server: ca<br/>replicas: 1"]
         LB --> Stable["Server: stable<br/>replicas: 3"]

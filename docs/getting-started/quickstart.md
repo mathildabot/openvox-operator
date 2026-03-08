@@ -41,7 +41,7 @@ The operator will:
 1. Create a CA setup Job to initialize the Certificate Authority
 2. Store CA certificates in a Kubernetes Secret
 3. Create a Deployment for the Server pod
-4. Create a ClusterIP Service for the CA
+4. Create a Service for the CA
 
 ## Verify
 
