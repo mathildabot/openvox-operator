@@ -1,6 +1,6 @@
 # Certificate
 
-A Certificate manages the lifecycle of a single X.509 certificate signed by a CertificateAuthority. The controller automatically chooses the signing strategy based on whether a CA server is already running.
+A Certificate manages the lifecycle of a single X.509 certificate signed by a CertificateAuthority.
 
 ## Example
 
@@ -39,17 +39,17 @@ spec:
 |---|---|
 | `Pending` | Waiting for CertificateAuthority to reach `Ready` |
 | `Requesting` | Certificate signing Job is running |
-| `Signed` | SSL Secret created, Servers can mount it |
+| `Signed` | TLS Secret created, Servers can mount it |
 | `Error` | Certificate signing failed |
 
 ## Signing Strategy
 
-The controller automatically selects how to sign the certificate:
+The controller uses two paths to obtain a signed certificate:
 
 | Strategy | Condition | How it works |
 |---|---|---|
-| **Local signing** | No CA Server running | Job mounts the CA PVC directly and signs locally |
-| **HTTP bootstrap** | CA Server is running | Job runs `puppet ssl bootstrap` against the CA Service |
+| **CA setup export** | Certificate created before/with CA | CA setup Job creates the CA AND exports the server cert+key as a TLS Secret. The Certificate controller adopts the Secret. |
+| **HTTP bootstrap** | Certificate created after CA is Ready | Job runs `puppet ssl bootstrap` against the running CA Service |
 
 The controller discovers the CA Service automatically by finding Servers with `ca: true` in the same Environment and the Pools whose selector matches them.
 
@@ -57,8 +57,8 @@ The controller discovers the CA Service automatically by finding Servers with `c
 
 | Resource | Name | Description |
 |---|---|---|
-| ServiceAccount | `{name}-cert-setup` | Job ServiceAccount with permission to create the SSL Secret |
-| Role | `{name}-cert-setup` | Scoped to SSL and CA Secret access |
+| ServiceAccount | `{name}-cert-setup` | Job ServiceAccount with permission to create the TLS Secret |
+| Role | `{name}-cert-setup` | Scoped to TLS and CA Secret access |
 | RoleBinding | `{name}-cert-setup` | Binds Role to ServiceAccount |
-| Job | `{name}-cert-setup` | Signs the certificate (local or HTTP) and creates the SSL Secret |
-| Secret | `{name}-ssl` | Certificate data: `cert.pem`, `key.pem` |
+| Job | `{name}-cert-setup` | Signs the certificate via HTTP bootstrap and creates the TLS Secret |
+| Secret | `{name}-tls` | Certificate data: `cert.pem`, `key.pem` |

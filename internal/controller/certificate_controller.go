@@ -86,12 +86,17 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	sslSecretName := fmt.Sprintf("%s-ssl", cert.Name)
+	tlsSecretName := fmt.Sprintf("%s-tls", cert.Name)
 
-	// Check if SSL Secret already exists
-	if r.isSecretReady(ctx, sslSecretName, cert.Namespace, "cert.pem") {
+	// Check if TLS Secret already exists (may have been created by CA setup job)
+	if r.isSecretReady(ctx, tlsSecretName, cert.Namespace, "cert.pem") {
+		// Adopt the Secret by setting ownerReference to this Certificate
+		if err := r.adoptTLSSecret(ctx, cert, tlsSecretName); err != nil {
+			return ctrl.Result{}, fmt.Errorf("adopting TLS Secret: %w", err)
+		}
+
 		cert.Status.Phase = openvoxv1alpha1.CertificatePhaseSigned
-		cert.Status.SecretName = sslSecretName
+		cert.Status.SecretName = tlsSecretName
 		meta.SetStatusCondition(&cert.Status.Conditions, metav1.Condition{
 			Type:               openvoxv1alpha1.ConditionCertSigned,
 			Status:             metav1.ConditionTrue,
@@ -110,7 +115,7 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, fmt.Errorf("reconciling cert RBAC: %w", err)
 	}
 
-	// Determine signing strategy: local (PVC) or HTTP (against running CA server)
+	// Sign via HTTP bootstrap against running CA server
 	result, err := r.reconcileCertJob(ctx, cert, ca, env)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconciling cert job: %w", err)
@@ -121,7 +126,7 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	// Certificate is signed
 	cert.Status.Phase = openvoxv1alpha1.CertificatePhaseSigned
-	cert.Status.SecretName = sslSecretName
+	cert.Status.SecretName = tlsSecretName
 	meta.SetStatusCondition(&cert.Status.Conditions, metav1.Condition{
 		Type:               openvoxv1alpha1.ConditionCertSigned,
 		Status:             metav1.ConditionTrue,
@@ -150,12 +155,12 @@ func (r *CertificateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *CertificateReconciler) reconcileCertRBAC(ctx context.Context, cert *openvoxv1alpha1.Certificate, ca *openvoxv1alpha1.CertificateAuthority) error {
 	baseName := fmt.Sprintf("%s-cert-setup", cert.Name)
-	sslSecretName := fmt.Sprintf("%s-ssl", cert.Name)
+	tlsSecretName := fmt.Sprintf("%s-tls", cert.Name)
 	caSecretName := fmt.Sprintf("%s-ca", ca.Name)
 	labels := environmentLabels(ca.Spec.EnvironmentRef)
 	labels["openvox.voxpupuli.org/certificate"] = cert.Name
 
-	resourceNames := []string{sslSecretName, caSecretName}
+	resourceNames := []string{tlsSecretName, caSecretName}
 
 	if err := r.ensureCertServiceAccount(ctx, baseName, cert.Namespace, labels, cert); err != nil {
 		return fmt.Errorf("ensuring ServiceAccount: %w", err)
@@ -274,27 +279,23 @@ func (r *CertificateReconciler) ensureCertRoleBinding(ctx context.Context, name,
 
 func (r *CertificateReconciler) reconcileCertJob(ctx context.Context, cert *openvoxv1alpha1.Certificate, ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	sslSecretName := fmt.Sprintf("%s-ssl", cert.Name)
+	tlsSecretName := fmt.Sprintf("%s-tls", cert.Name)
+
+	// Wait for a running CA server to bootstrap against
+	caServiceName := r.findCAServiceName(ctx, ca, cert.Namespace)
+	if caServiceName == "" {
+		logger.Info("waiting for CA server to become available")
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
 
 	cert.Status.Phase = openvoxv1alpha1.CertificatePhaseRequesting
 	_ = r.Status().Update(ctx, cert)
 
-	// Strategy: check if a CA server is running for this environment
-	// If yes → HTTP bootstrap against the CA service
-	// If no → local signing via PVC mount
-	caServiceName := r.findCAServiceName(ctx, ca, cert.Namespace)
-
 	jobName := fmt.Sprintf("%s-cert-setup", cert.Name)
-	var job *batchv1.Job
-	if caServiceName != "" {
-		logger.Info("using HTTP cert bootstrap", "caService", caServiceName)
-		job = r.buildHTTPCertJob(cert, ca, env, jobName, caServiceName)
-	} else {
-		logger.Info("using local PVC cert signing")
-		job = r.buildLocalCertJob(cert, ca, env, jobName)
-	}
+	logger.Info("using HTTP cert bootstrap", "caService", caServiceName)
+	job := r.buildHTTPCertJob(cert, ca, env, jobName, caServiceName)
 
-	return r.reconcileJob(ctx, cert, jobName, job, sslSecretName)
+	return r.reconcileJob(ctx, cert, jobName, job, tlsSecretName)
 }
 
 // findCAServiceName discovers the CA service endpoint by:
@@ -344,7 +345,7 @@ func (r *CertificateReconciler) buildHTTPCertJob(cert *openvoxv1alpha1.Certifica
 	image := fmt.Sprintf("%s:%s", env.Spec.Image.Repository, env.Spec.Image.Tag)
 	backoffLimit := int32(3)
 	saName := fmt.Sprintf("%s-cert-setup", cert.Name)
-	sslSecretName := fmt.Sprintf("%s-ssl", cert.Name)
+	tlsSecretName := fmt.Sprintf("%s-tls", cert.Name)
 	labels := environmentLabels(ca.Spec.EnvironmentRef)
 	labels["openvox.voxpupuli.org/certificate"] = cert.Name
 
@@ -358,7 +359,7 @@ func (r *CertificateReconciler) buildHTTPCertJob(cert *openvoxv1alpha1.Certifica
 	envVars := []corev1.EnvVar{
 		{Name: "CERTNAME", Value: certname},
 		{Name: "DNS_ALT_NAMES", Value: strings.Join(cert.Spec.DNSAltNames, ",")},
-		{Name: "SSL_SECRET_NAME", Value: sslSecretName},
+		{Name: "SSL_SECRET_NAME", Value: tlsSecretName},
 		{Name: "CA_SERVICE", Value: caServiceName},
 		{Name: "ENV_NAME", Value: ca.Spec.EnvironmentRef},
 		{Name: "SERVER_NAME", Value: cert.Name},
@@ -415,150 +416,27 @@ func (r *CertificateReconciler) buildHTTPCertJob(cert *openvoxv1alpha1.Certifica
 	}
 }
 
-func (r *CertificateReconciler) buildLocalCertJob(cert *openvoxv1alpha1.Certificate, ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment, jobName string) *batchv1.Job {
-	image := fmt.Sprintf("%s:%s", env.Spec.Image.Repository, env.Spec.Image.Tag)
-	backoffLimit := int32(3)
-	saName := fmt.Sprintf("%s-cert-setup", cert.Name)
-	sslSecretName := fmt.Sprintf("%s-ssl", cert.Name)
-	caSecretName := fmt.Sprintf("%s-ca", ca.Name)
-	labels := environmentLabels(ca.Spec.EnvironmentRef)
-	labels["openvox.voxpupuli.org/certificate"] = cert.Name
+// --- Secret adoption ---
 
-	certname := cert.Spec.Certname
-	if certname == "" {
-		certname = "puppet"
+// adoptTLSSecret sets the ownerReference on the TLS Secret to this Certificate,
+// so that deleting the Certificate garbage-collects the Secret.
+func (r *CertificateReconciler) adoptTLSSecret(ctx context.Context, cert *openvoxv1alpha1.Certificate, secretName string) error {
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: cert.Namespace}, secret); err != nil {
+		return err
 	}
 
-	script := buildLocalCertScript()
-
-	envVars := []corev1.EnvVar{
-		{Name: "CERTNAME", Value: certname},
-		{Name: "DNS_ALT_NAMES", Value: strings.Join(cert.Spec.DNSAltNames, ",")},
-		{Name: "SSL_SECRET_NAME", Value: sslSecretName},
-		{Name: "CA_SECRET_NAME", Value: caSecretName},
-		{Name: "ENV_NAME", Value: ca.Spec.EnvironmentRef},
-		{Name: "SERVER_NAME", Value: cert.Name},
+	// Check if already owned by this Certificate
+	for _, ref := range secret.OwnerReferences {
+		if ref.UID == cert.UID {
+			return nil
+		}
 	}
 
-	return &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      jobName,
-			Namespace: cert.Namespace,
-			Labels:    labels,
-		},
-		Spec: batchv1.JobSpec{
-			BackoffLimit: &backoffLimit,
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{Labels: labels},
-				Spec: corev1.PodSpec{
-					ServiceAccountName: saName,
-					RestartPolicy:      corev1.RestartPolicyNever,
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsUser:    int64Ptr(1001),
-						RunAsGroup:   int64Ptr(0),
-						RunAsNonRoot: boolPtr(true),
-					},
-					Containers: []corev1.Container{
-						{
-							Name:            "cert-setup",
-							Image:           image,
-							ImagePullPolicy: env.Spec.Image.PullPolicy,
-							Command:         []string{"/bin/bash", "-c", script},
-							Env:             envVars,
-							VolumeMounts: []corev1.VolumeMount{
-								{Name: "ca-data", MountPath: "/etc/puppetlabs/puppetserver/ca"},
-								{Name: "ssl", MountPath: "/etc/puppetlabs/puppet/ssl"},
-								{Name: "puppet-conf", MountPath: "/etc/puppetlabs/puppet/puppet.conf", SubPath: "puppet.conf", ReadOnly: true},
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "ca-data",
-							VolumeSource: corev1.VolumeSource{
-								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: fmt.Sprintf("%s-data", ca.Name),
-								},
-							},
-						},
-						{Name: "ssl", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-						{
-							Name: "puppet-conf",
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: fmt.Sprintf("%s-config", ca.Spec.EnvironmentRef),
-									},
-									Items: []corev1.KeyToPath{{Key: "puppet.conf", Path: "puppet.conf"}},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+	if err := controllerutil.SetControllerReference(cert, secret, r.Scheme); err != nil {
+		return err
 	}
-}
-
-// buildLocalCertScript returns a script that signs a certificate locally using the CA PVC.
-func buildLocalCertScript() string {
-	return `#!/bin/bash
-set -euo pipefail
-
-echo "Signing certificate locally using CA PVC..."
-ARGS="--config /etc/puppetlabs/puppet/puppet.conf --certname ${CERTNAME}"
-if [ -n "${DNS_ALT_NAMES}" ]; then
-  ARGS="${ARGS} --subject-alt-names ${DNS_ALT_NAMES}"
-fi
-puppetserver ca setup ${ARGS}
-echo "Local certificate signing complete."
-
-NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
-TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-API="https://kubernetes.default.svc/api/v1/namespaces/${NAMESPACE}/secrets"
-
-CERT=$(base64 -w0 /etc/puppetlabs/puppet/ssl/certs/${CERTNAME}.pem)
-KEY=$(base64 -w0 /etc/puppetlabs/puppet/ssl/private_keys/${CERTNAME}.pem)
-
-PAYLOAD="{
-  \"apiVersion\": \"v1\",
-  \"kind\": \"Secret\",
-  \"metadata\": {
-    \"name\": \"${SSL_SECRET_NAME}\",
-    \"namespace\": \"${NAMESPACE}\",
-    \"labels\": {
-      \"app.kubernetes.io/managed-by\": \"openvox-operator\",
-      \"app.kubernetes.io/name\": \"openvox\",
-      \"openvox.voxpupuli.org/environment\": \"${ENV_NAME}\",
-      \"openvox.voxpupuli.org/certificate\": \"${SERVER_NAME}\"
-    }
-  },
-  \"data\": {
-    \"cert.pem\": \"${CERT}\",
-    \"key.pem\": \"${KEY}\"
-  }
-}"
-
-HTTP_CODE=$(curl -sk -o /tmp/api-response -w '%{http_code}' -X PUT \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  "${API}/${SSL_SECRET_NAME}" -d "$PAYLOAD")
-
-if [ "$HTTP_CODE" = "404" ]; then
-  HTTP_CODE=$(curl -sk -o /tmp/api-response -w '%{http_code}' -X POST \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    "${API}" -d "$PAYLOAD")
-fi
-
-if [ "${HTTP_CODE:0:1}" != "2" ]; then
-  echo "Failed to create/update SSL Secret (HTTP ${HTTP_CODE}):" >&2
-  cat /tmp/api-response >&2
-  exit 1
-fi
-
-echo "SSL Secret '${SSL_SECRET_NAME}' created successfully."
-`
+	return r.Update(ctx, secret)
 }
 
 // --- Job lifecycle management ---

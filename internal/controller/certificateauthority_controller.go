@@ -14,9 +14,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"strings"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	openvoxv1alpha1 "github.com/slauger/openvox-operator/api/v1alpha1"
@@ -31,6 +34,7 @@ type CertificateAuthorityReconciler struct {
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=certificateauthorities,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=certificateauthorities/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=certificateauthorities/finalizers,verbs=update
+// +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=certificates,verbs=get;list;watch
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=environments,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
@@ -70,13 +74,19 @@ func (r *CertificateAuthorityReconciler) Reconcile(ctx context.Context, req ctrl
 		return ctrl.Result{}, fmt.Errorf("reconciling CA PVC: %w", err)
 	}
 
-	// Step 2: Ensure RBAC for CA setup job
-	if err := r.reconcileCASetupRBAC(ctx, ca); err != nil {
+	// Step 2: Discover Certificates referencing this CA
+	certs, err := r.findCertificatesForCA(ctx, ca)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("finding certificates for CA: %w", err)
+	}
+
+	// Step 3: Ensure RBAC for CA setup job
+	if err := r.reconcileCASetupRBAC(ctx, ca, certs); err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconciling CA setup RBAC: %w", err)
 	}
 
-	// Step 3: Run CA setup job
-	result, err := r.reconcileCASetupJob(ctx, ca, env)
+	// Step 4: Run CA setup job
+	result, err := r.reconcileCASetupJob(ctx, ca, env, certs)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("reconciling CA setup job: %w", err)
 	}
@@ -109,6 +119,17 @@ func (r *CertificateAuthorityReconciler) SetupWithManager(mgr ctrl.Manager) erro
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.ServiceAccount{}).
+		Watches(&openvoxv1alpha1.Certificate{}, handler.EnqueueRequestsFromMapFunc(
+			func(ctx context.Context, obj client.Object) []ctrl.Request {
+				cert, ok := obj.(*openvoxv1alpha1.Certificate)
+				if !ok || cert.Spec.AuthorityRef == "" {
+					return nil
+				}
+				return []ctrl.Request{
+					{NamespacedName: types.NamespacedName{Name: cert.Spec.AuthorityRef, Namespace: cert.Namespace}},
+				}
+			},
+		)).
 		Complete(r)
 }
 
@@ -153,13 +174,36 @@ func (r *CertificateAuthorityReconciler) reconcileCAPVC(ctx context.Context, ca 
 	return err
 }
 
+// --- Certificate discovery ---
+
+// findCertificatesForCA lists Certificates in the namespace that reference this CA.
+func (r *CertificateAuthorityReconciler) findCertificatesForCA(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority) ([]openvoxv1alpha1.Certificate, error) {
+	certList := &openvoxv1alpha1.CertificateList{}
+	if err := r.List(ctx, certList, client.InNamespace(ca.Namespace)); err != nil {
+		return nil, err
+	}
+
+	var result []openvoxv1alpha1.Certificate
+	for _, cert := range certList.Items {
+		if cert.Spec.AuthorityRef == ca.Name {
+			result = append(result, cert)
+		}
+	}
+	return result, nil
+}
+
 // --- RBAC for CA setup job ---
 
-func (r *CertificateAuthorityReconciler) reconcileCASetupRBAC(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority) error {
+func (r *CertificateAuthorityReconciler) reconcileCASetupRBAC(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, certs []openvoxv1alpha1.Certificate) error {
 	baseName := fmt.Sprintf("%s-ca-setup", ca.Name)
 	caSecretName := fmt.Sprintf("%s-ca", ca.Name)
 	labels := environmentLabels(ca.Spec.EnvironmentRef)
 	labels["openvox.voxpupuli.org/certificateauthority"] = ca.Name
+
+	resourceNames := []string{caSecretName}
+	for _, cert := range certs {
+		resourceNames = append(resourceNames, fmt.Sprintf("%s-tls", cert.Name))
+	}
 
 	// ServiceAccount
 	if err := r.ensureCAServiceAccount(ctx, baseName, ca.Namespace, labels, ca); err != nil {
@@ -167,7 +211,7 @@ func (r *CertificateAuthorityReconciler) reconcileCASetupRBAC(ctx context.Contex
 	}
 
 	// Role
-	if err := r.ensureCARole(ctx, baseName, ca.Namespace, labels, []string{caSecretName}, ca); err != nil {
+	if err := r.ensureCARole(ctx, baseName, ca.Namespace, labels, resourceNames, ca); err != nil {
 		return fmt.Errorf("ensuring Role: %w", err)
 	}
 
@@ -279,7 +323,7 @@ func (r *CertificateAuthorityReconciler) ensureCARoleBinding(ctx context.Context
 
 // --- CA Setup Job ---
 
-func (r *CertificateAuthorityReconciler) reconcileCASetupJob(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment) (ctrl.Result, error) {
+func (r *CertificateAuthorityReconciler) reconcileCASetupJob(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment, certs []openvoxv1alpha1.Certificate) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	caSecretName := fmt.Sprintf("%s-ca", ca.Name)
 
@@ -294,12 +338,12 @@ func (r *CertificateAuthorityReconciler) reconcileCASetupJob(ctx context.Context
 	_ = r.Status().Update(ctx, ca)
 
 	jobName := fmt.Sprintf("%s-ca-setup", ca.Name)
-	job := r.buildCASetupJob(ca, env, jobName)
+	job := r.buildCASetupJob(ca, env, jobName, certs)
 
 	return r.reconcileJob(ctx, ca, jobName, job, caSecretName)
 }
 
-func (r *CertificateAuthorityReconciler) buildCASetupJob(ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment, jobName string) *batchv1.Job {
+func (r *CertificateAuthorityReconciler) buildCASetupJob(ca *openvoxv1alpha1.CertificateAuthority, env *openvoxv1alpha1.Environment, jobName string, certs []openvoxv1alpha1.Certificate) *batchv1.Job {
 	image := fmt.Sprintf("%s:%s", env.Spec.Image.Repository, env.Spec.Image.Tag)
 	backoffLimit := int32(3)
 	saName := fmt.Sprintf("%s-ca-setup", ca.Name)
@@ -307,13 +351,31 @@ func (r *CertificateAuthorityReconciler) buildCASetupJob(ca *openvoxv1alpha1.Cer
 	labels := environmentLabels(ca.Spec.EnvironmentRef)
 	labels["openvox.voxpupuli.org/certificateauthority"] = ca.Name
 
+	// Use the first Certificate's certname and SANs for the initial CA setup cert.
+	// If no Certificate exists yet, the CA setup will only create the CA.
+	certname := "puppet"
+	dnsAltNames := ""
+	tlsSecretName := ""
+	certResourceName := ""
+	if len(certs) > 0 {
+		cert := certs[0]
+		if cert.Spec.Certname != "" {
+			certname = cert.Spec.Certname
+		}
+		dnsAltNames = strings.Join(cert.Spec.DNSAltNames, ",")
+		tlsSecretName = fmt.Sprintf("%s-tls", cert.Name)
+		certResourceName = cert.Name
+	}
+
 	script := buildCAOnlySetupScript()
 
 	envVars := []corev1.EnvVar{
-		{Name: "CERTNAME", Value: "puppet"},
-		{Name: "DNS_ALT_NAMES", Value: ""},
+		{Name: "CERTNAME", Value: certname},
+		{Name: "DNS_ALT_NAMES", Value: dnsAltNames},
 		{Name: "CA_SECRET_NAME", Value: caSecretName},
 		{Name: "ENV_NAME", Value: ca.Spec.EnvironmentRef},
+		{Name: "SSL_SECRET_NAME", Value: tlsSecretName},
+		{Name: "CERT_RESOURCE_NAME", Value: certResourceName},
 	}
 
 	return &batchv1.Job{
@@ -444,6 +506,35 @@ create_or_update_secret "${CA_SECRET_NAME}" "{
 }"
 
 echo "CA secret created successfully."
+
+# TLS Secret for the initial server certificate (if a Certificate resource exists)
+if [ -n "${SSL_SECRET_NAME}" ] && [ -f "/etc/puppetlabs/puppet/ssl/certs/${CERTNAME}.pem" ]; then
+  echo "Exporting TLS Secret for certificate '${CERTNAME}'..."
+  CERT=$(base64 -w0 "/etc/puppetlabs/puppet/ssl/certs/${CERTNAME}.pem")
+  KEY=$(base64 -w0 "/etc/puppetlabs/puppet/ssl/private_keys/${CERTNAME}.pem")
+
+  create_or_update_secret "${SSL_SECRET_NAME}" "{
+    \"apiVersion\": \"v1\",
+    \"kind\": \"Secret\",
+    \"metadata\": {
+      \"name\": \"${SSL_SECRET_NAME}\",
+      \"namespace\": \"${NAMESPACE}\",
+      \"labels\": {
+        \"app.kubernetes.io/managed-by\": \"openvox-operator\",
+        \"app.kubernetes.io/name\": \"openvox\",
+        \"openvox.voxpupuli.org/environment\": \"${ENV_NAME}\",
+        \"openvox.voxpupuli.org/certificate\": \"${CERT_RESOURCE_NAME}\"
+      }
+    },
+    \"data\": {
+      \"cert.pem\": \"${CERT}\",
+      \"key.pem\": \"${KEY}\"
+    }
+  }"
+  echo "TLS Secret '${SSL_SECRET_NAME}' created successfully."
+else
+  echo "No TLS Secret to export (SSL_SECRET_NAME='${SSL_SECRET_NAME}')."
+fi
 `
 }
 
