@@ -89,12 +89,6 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 | **`CodeDeploy`** | r10k code deployment from Git (PVC, Job, CronJob) |
 | *`Database`* | *OpenVox DB (StatefulSet, Service)* |
 
-### Why separate CRDs for CA and Certificates?
-
-Traditional Puppet/OpenVox Server bundles CA management, certificate signing, and server runtime into a single process. This works on VMs where `puppetserver ca` (a CRuby CLI) manages everything locally. This operator deliberately ships **no system Ruby** - only JRuby embedded in the server JAR - to keep the image small and reduce the update surface. CA operations are handled through a custom JRuby wrapper that calls `clojure.main` instead.
-
-By separating the CA lifecycle (`CertificateAuthority`) from certificate signing (`Certificate`) and from the server runtime (`Server`), each concern becomes independently manageable. Certificates can be issued before a server is running, revoked without restarting pods, and the CA can be initialized once while multiple servers share the same signed certificate for horizontal scaling.
-
 ## Differences to VM-based Installations
 
 Traditional Puppet/OpenVox Server installations on VMs use OS packages that install both a system Ruby (CRuby) and the server JAR with its embedded JRuby. The system Ruby is used by CLI tools like `puppet config set` and `puppetserver ca`. The server process requires root privileges.
@@ -160,6 +154,8 @@ Override the image tag or use a different scenario:
 make local-deploy LOCAL_TAG=my-feature
 make local-stack LOCAL_TAG=my-feature STACK_VALUES=charts/openvox-stack/ci/multi-server-values.yaml
 ```
+
+### Available Targets
 
 | Target | Description |
 |---|---|
