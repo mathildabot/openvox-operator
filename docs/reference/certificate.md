@@ -38,7 +38,7 @@ spec:
 | Phase | Description |
 |---|---|
 | `Pending` | Waiting for CertificateAuthority to reach `Ready` |
-| `Requesting` | Certificate signing Job is running |
+| `Requesting` | Certificate signing in progress |
 | `Signed` | TLS Secret created, Servers can mount it |
 | `Error` | Certificate signing failed |
 
@@ -49,7 +49,7 @@ The controller uses two paths to obtain a signed certificate:
 | Strategy | Condition | How it works |
 |---|---|---|
 | **CA setup export** | Certificate created before/with CA | CA setup Job creates the CA AND exports the server cert+key as a TLS Secret. The Certificate controller adopts the Secret. |
-| **HTTP bootstrap** | Certificate created after CA is Ready | Job runs `puppet ssl bootstrap` against the running CA Service |
+| **HTTP signing** | Certificate created after CA is Ready | Operator generates an RSA key pair in-process, submits a CSR to the Puppet CA HTTP API, and polls for the signed certificate. No Jobs or shell scripts involved. |
 
 The controller discovers the CA Service automatically by finding Servers with `ca: true` in the same Environment and the Pools whose selector matches them.
 
@@ -57,8 +57,4 @@ The controller discovers the CA Service automatically by finding Servers with `c
 
 | Resource | Name | Description |
 |---|---|---|
-| ServiceAccount | `{name}-cert-setup` | Job ServiceAccount with permission to create the TLS Secret |
-| Role | `{name}-cert-setup` | Scoped to TLS and CA Secret access |
-| RoleBinding | `{name}-cert-setup` | Binds Role to ServiceAccount |
-| Job | `{name}-cert-setup` | Signs the certificate via HTTP bootstrap and creates the TLS Secret |
 | Secret | `{name}-tls` | Certificate data: `cert.pem`, `key.pem` |

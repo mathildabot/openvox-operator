@@ -38,9 +38,9 @@ Certificates are managed by the Certificate controller:
 
 1. The Certificate controller waits for the referenced CertificateAuthority to be `Ready`
 2. It determines the signing strategy:
-   - **CA setup export**: The first Certificate (created with the CA) gets its cert exported directly by the CA setup Job
-   - **HTTP bootstrap**: Additional Certificates run `puppet ssl bootstrap` against the running CA Service
-3. The Job creates a TLS **Secret** with cert.pem and key.pem
+   - **CA setup export**: The first Certificate (created with the CA) gets its cert+key exported directly by the CA setup Job
+   - **HTTP signing**: Additional Certificates are signed by the operator in-process — it generates an RSA key pair, submits a CSR to the Puppet CA HTTP API, and polls for the signed certificate
+3. The controller creates a TLS **Secret** with cert.pem and key.pem
 4. The Certificate transitions to the `Signed` phase
 
 ```mermaid
@@ -49,16 +49,19 @@ sequenceDiagram
     participant CAJob as CA Setup Job
     participant PVC as CA PVC
     participant CASec as CA Secret
-    participant CertJob as Cert Setup Job
-    participant SSLSec as SSL Secret
+    participant CA as CA Server
+    participant TLS as TLS Secret
     participant Srv as Server Deployment
 
     Op->>CAJob: Create CA setup Job
     CAJob->>PVC: Write CA data
     CAJob->>CASec: Create CA Secret (certs + CRL)
-    Op->>CertJob: Create cert setup Job
-    CertJob->>SSLSec: Create SSL Secret (cert + key)
-    Op->>Srv: Create Deployment (mounts SSL + CA Secrets)
+    CAJob->>TLS: Export initial TLS Secret (cert + key)
+    Op->>Srv: Create CA Deployment
+    Op->>CA: Submit CSR via HTTP API
+    CA-->>Op: Return signed certificate
+    Op->>TLS: Create TLS Secret (cert + key)
+    Op->>Srv: Create Server Deployment (mounts TLS + CA Secrets)
 ```
 
 ## Dedicated ServiceAccounts
