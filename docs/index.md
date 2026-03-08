@@ -4,12 +4,12 @@ A Kubernetes Operator for running [OpenVox Server](https://github.com/OpenVoxPro
 
 ## Features
 
-- **Automated CA Lifecycle** - CA initialization, certificate signing and distribution - fully managed
-- **One Image, Two Roles** - Same rootless image runs as CA or server, configured by the operator
-- **Scalable Servers** - Scale catalog compilation horizontally with multiple server pools and HPA
-- **Multi-Version Deployments** - Run different server versions side by side for canary deployments and rolling upgrades
-- **Rootless & OpenShift Ready** - Random UID compatible, no root, no ezbake, no privilege escalation
-- **Kubernetes-Native** - All config via ConfigMaps/Secrets, no entrypoint scripts, no ENV translation
+- 🔐 **Automated CA Lifecycle** - CA initialization, certificate signing and distribution - fully managed
+- 📦 **One Image, Two Roles** - Same rootless image runs as CA or server, configured by the operator
+- ⚡ **Scalable Servers** - Scale catalog compilation horizontally with multiple server pools and HPA
+- 🔄 **Multi-Version Deployments** - Run different server versions side by side for canary deployments and rolling upgrades
+- 🔒 **Rootless & OpenShift Ready** - Random UID compatible, no root, no ezbake, no privilege escalation
+- ☸️ **Kubernetes-Native** - All config via ConfigMaps/Secrets, no entrypoint scripts, no ENV translation
 
 ## How It Works
 
