@@ -37,26 +37,33 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 
 | Kind | Purpose | Creates |
 |---|---|---|
-| **`Environment`** | Shared config, CA lifecycle, OpenVoxDB connection | ConfigMaps, CA Job, CA Secret, CA PVC, CA Service |
+| **`Environment`** | Shared config, CA lifecycle, OpenVox DB connection | ConfigMaps, CA Job, CA Secret, CA PVC, CA Service |
 | **`Pool`** | Owns a Kubernetes Service | Service (type, annotations, port) |
 | **`Server`** | OpenVox Server instance pool | Deployment, HPA |
 | **`CodeDeploy`** | r10k code deployment from Git | PVC, Job, CronJob |
 | **`SigningPolicy`** | Policy-based CSR approval (psk, pattern, token, any) | — |
 | **`CertificateRequest`** | Represents a pending/signed CSR | — |
-| *`Database`* | *OpenVoxDB (future)* | *StatefulSet, Service* |
+| *`Database`* | *OpenVox DB (future)* | *StatefulSet, Service* |
 
-Servers reference their Environment and optionally a Pool:
 
-```
-Environment <-- Server (environmentRef)
-Environment <-- CodeDeploy (environmentRef)
-Environment <-- Pool (environmentRef)
-Environment <-- SigningPolicy (via ca.signingPolicies)
-Pool        <-- Server (poolRef)
-CertificateRequest --> Environment (environmentRef)
-```
+## Differences to VM-based Installations
 
-> Detailed data model: [docs/data-model.md](docs/data-model.md) - [docs/design.md](docs/design.md)
+Traditional Puppet/OpenVox Server installations on VMs use OS packages that install both a system Ruby (CRuby) and the server JAR with its embedded JRuby. The system Ruby is used by CLI tools like `puppet config set` and `puppetserver ca`. The server process requires root privileges.
+
+This operator takes a **Kubernetes-native approach** that differs in several key areas:
+
+| | VM-based | openvox-operator |
+|---|---|---|
+| **Ruby** | System Ruby (CRuby) installed alongside JRuby for CLI tooling | **No system Ruby** - only JRuby embedded in the server JAR |
+| **Configuration** | `puppet.conf` managed via `puppet config set`, Puppet modules, or config management | Declarative CRDs, operator renders ConfigMaps and Secrets |
+| **Privileges** | Requires root | Fully rootless, random UID compatible |
+| **CA Management** | `puppetserver ca` CLI with CRuby shebang | Custom JRuby wrapper that routes through `clojure.main` |
+| **Certificates** | Each compiler has its own certificate | All replicas of a `Server` share the same certificate, enabling seamless horizontal scaling |
+| **Scaling** | Horizontal scaling possible but requires manual setup of additional compiler VMs | Horizontal via Deployment replicas and HPA |
+| **Code Deployment** | r10k installed on the VM, triggered by cron or webhook | `CodeDeploy` CRD manages r10k as a Kubernetes Job/CronJob |
+| **Multi-Version** | Separate VMs or manual package pinning | Multiple `Server` CRDs in the same `Pool` with different image tags |
+
+By eliminating system Ruby from the runtime image, the container has a smaller footprint and a reduced attack surface, avoiding the duplicate Ruby installation (CRuby + JRuby) that the OS packages carry.
 
 ## Examples
 
