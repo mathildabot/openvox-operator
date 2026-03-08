@@ -2,20 +2,12 @@
 
 A Kubernetes Operator for running [OpenVox Server](https://github.com/OpenVoxProject) environments on **Kubernetes** and **OpenShift**.
 
-<table>
-<tr>
-<td>🔐</td><td><b>Automated CA Lifecycle</b><br/>CA initialization, certificate signing and distribution - fully managed</td>
-<td>📦</td><td><b>One Image, Two Roles</b><br/>Same rootless image runs as CA or compiler, configured by the operator</td>
-</tr>
-<tr>
-<td>⚡</td><td><b>Scalable Compilers</b><br/>Scale catalog compilation horizontally - multiple server pools with HPA</td>
-<td>🔄</td><td><b>Multi-Version Deployments</b><br/>Run different server versions side by side - canary deployments, rolling upgrades</td>
-</tr>
-<tr>
-<td>🔒</td><td><b>Rootless & OpenShift Ready</b><br/>Random UID compatible, no root, no ezbake, no privilege escalation</td>
-<td>☸️</td><td><b>Kubernetes-Native</b><br/>All config via ConfigMaps/Secrets - no entrypoint scripts, no ENV translation</td>
-</tr>
-</table>
+- 🔐 **Automated CA Lifecycle** - CA initialization, certificate signing and distribution - fully managed
+- 📦 **One Image, Two Roles** - Same rootless image runs as CA or compiler, configured by the operator
+- ⚡ **Scalable Compilers** - Scale catalog compilation horizontally - multiple server pools with HPA
+- 🔄 **Multi-Version Deployments** - Run different server versions side by side - canary deployments, rolling upgrades
+- 🔒 **Rootless & OpenShift Ready** - Random UID compatible, no root, no ezbake, no privilege escalation
+- ☸️ **Kubernetes-Native** - All config via ConfigMaps/Secrets - no entrypoint scripts, no ENV translation
 
 ## Architecture
 
