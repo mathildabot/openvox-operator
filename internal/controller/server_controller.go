@@ -287,6 +287,7 @@ func (r *ServerReconciler) buildPodSpec(server *openvoxv1alpha1.Server, env *ope
 	}
 
 	podSpec := corev1.PodSpec{
+		ServiceAccountName: fmt.Sprintf("%s-server", server.Spec.EnvironmentRef),
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsUser:    int64Ptr(1001),
 			RunAsGroup:   int64Ptr(0),

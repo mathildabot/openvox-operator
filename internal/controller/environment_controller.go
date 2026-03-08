@@ -69,6 +69,11 @@ func (r *EnvironmentReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		LastTransitionTime: metav1.Now(),
 	})
 
+	// Step 1b: Ensure server ServiceAccount exists
+	if err := r.reconcileServerServiceAccount(ctx, env); err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconciling server ServiceAccount: %w", err)
+	}
+
 	// Step 2: CA lifecycle
 	// Step 2a: Ensure CA PVC exists
 	if err := r.reconcileCAPVC(ctx, env); err != nil {
@@ -288,6 +293,31 @@ dropsonde: {
     enabled: false
 }
 `
+}
+
+// --- Server ServiceAccount ---
+
+func (r *EnvironmentReconciler) reconcileServerServiceAccount(ctx context.Context, env *openvoxv1alpha1.Environment) error {
+	saName := fmt.Sprintf("%s-server", env.Name)
+	automount := false
+
+	sa := &corev1.ServiceAccount{}
+	if err := r.Get(ctx, types.NamespacedName{Name: saName, Namespace: env.Namespace}, sa); errors.IsNotFound(err) {
+		sa = &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      saName,
+				Namespace: env.Namespace,
+				Labels:    environmentLabels(env.Name),
+			},
+			AutomountServiceAccountToken: &automount,
+		}
+		if err := controllerutil.SetControllerReference(env, sa, r.Scheme); err != nil {
+			return err
+		}
+		return r.Create(ctx, sa)
+	} else {
+		return err
+	}
 }
 
 // --- CA PVC ---
