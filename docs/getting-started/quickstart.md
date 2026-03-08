@@ -13,7 +13,7 @@ metadata:
   name: lab
 spec:
   image:
-    repository: ghcr.io/slauger/openvoxserver
+    repository: ghcr.io/slauger/openvox-server
     tag: "8.12.1"
   ca:
     autosign: "true"
@@ -24,9 +24,12 @@ metadata:
   name: puppet
 spec:
   environmentRef: lab
-  ca:
-    enabled: true
-    server: true
+  ca: true
+  server: true
+  certname: puppet
+  dnsAltNames:
+    - puppet
+    - puppet-ca
   replicas: 1
 ```
 

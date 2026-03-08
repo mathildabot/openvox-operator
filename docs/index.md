@@ -18,11 +18,10 @@ The operator manages OpenVox Server environments through a set of Custom Resourc
 | Kind | Purpose |
 |---|---|
 | **Environment** | Shared config, CA lifecycle, PuppetDB connection |
-| **Pool** | Owns a Kubernetes Service for load balancing |
-| **Server** | OpenVox Server instance pool (CA or server role) |
-| **CodeDeploy** | r10k code deployment from Git |
+| **Pool** | Owns a Kubernetes Service, selects Servers via labels |
+| **Server** | OpenVox Server instance pool (CA and/or server role) |
 
-An **Environment** is the central resource that holds shared configuration, manages the Certificate Authority, and connects to PuppetDB. **Server** resources reference an Environment and run as either CA or server role. Multiple Servers can join the same **Pool**, which owns the Kubernetes Service that distributes traffic across them.
+An **Environment** is the central resource that holds shared configuration, manages the Certificate Authority, and connects to PuppetDB. **Server** resources reference an Environment and can run as CA, server, or both. A **Pool** creates a Kubernetes Service that selects Server pods by label.
 
 ```mermaid
 graph TD
