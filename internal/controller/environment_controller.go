@@ -578,7 +578,6 @@ func (r *EnvironmentReconciler) renderCAConf(ca *openvoxv1alpha1.CertificateAuth
 
 // --- Autosign Policy ---
 
-const autosignPolicyPath = "/etc/puppetlabs/puppet/autosign-policy.yaml"
 const autosignBinaryPath = "/usr/local/bin/openvox-autosign"
 
 // findSigningPolicies returns all SigningPolicies referencing the given CA.
