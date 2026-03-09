@@ -46,14 +46,26 @@ servers:
       limits:
         memory: 2Gi
 
+gateway:
+  name: ""              # shared Gateway resource name
+  sectionName: ""       # listener name on the Gateway
+
 pools:
   - name: ca
     serverRef: ca
     service:
       type: ClusterIP
       port: 8140
+    # route:
+    #   enabled: false
+    #   hostname: ""
+    #   injectDNSAltName: false
   - name: server
     serverRef: ca
     service:
       type: ClusterIP
       port: 8140
+    # route:
+    #   enabled: false
+    #   hostname: ""
+    #   injectDNSAltName: false

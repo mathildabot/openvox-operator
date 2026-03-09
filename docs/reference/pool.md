@@ -25,6 +25,7 @@ spec:
 | `environmentRef` | string | **required** | Reference to the Environment |
 | `selector` | map[string]string | - | Label selector for Server pods. The environment label is added automatically. If empty, selects all Servers in the Environment. |
 | `service` | [PoolServiceSpec](#poolservicespec) | - | Kubernetes Service configuration |
+| `route` | [PoolRouteSpec](#poolroutespec) | - | Gateway API TLSRoute configuration (see [Gateway API](../concepts/gateway-api.md)) |
 
 ### PoolServiceSpec
 
@@ -36,6 +37,22 @@ spec:
 | `annotations` | map[string]string | - | Service annotations |
 | `labels` | map[string]string | - | Additional Service labels |
 | `externalIPs` | []string | - | External IPs for the Service |
+
+### PoolRouteSpec
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | bool | `false` | Activates TLSRoute creation for this Pool |
+| `hostname` | string | - | SNI hostname (required when enabled) |
+| `gatewayRef` | [GatewayReference](#gatewayreference) | - | Gateway to attach the TLSRoute to (required when enabled) |
+| `injectDNSAltName` | bool | `false` | Add hostname to Certificate dnsAltNames of matching Servers |
+
+### GatewayReference
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `name` | string | **required** | Name of the Gateway |
+| `sectionName` | string | - | Listener name on the Gateway |
 
 ## Status
 
@@ -49,6 +66,7 @@ spec:
 | Resource | Name | Description |
 |---|---|---|
 | Service | `{name}` | Kubernetes Service selecting Server pods |
+| TLSRoute | `{name}` | Gateway API TLSRoute (only when `route.enabled: true` and Gateway API CRDs are available) |
 
 ## Common Patterns
 
@@ -81,3 +99,30 @@ spec:
     type: LoadBalancer
     port: 8140
 ```
+
+### SNI-based Routing with Gateway API
+
+Share a single LoadBalancer across environments using TLSRoute:
+
+```yaml
+apiVersion: openvox.voxpupuli.org/v1alpha1
+kind: Pool
+metadata:
+  name: puppet
+spec:
+  environmentRef: production
+  selector:
+    openvox.voxpupuli.org/role: server
+  service:
+    type: ClusterIP
+    port: 8140
+  route:
+    enabled: true
+    hostname: production.puppet.example.com
+    gatewayRef:
+      name: puppet-gateway
+      sectionName: tls
+    injectDNSAltName: true
+```
+
+See [Gateway API Integration](../concepts/gateway-api.md) for the full setup.

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -15,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	openvoxv1alpha1 "github.com/slauger/openvox-operator/api/v1alpha1"
 )
@@ -22,7 +24,8 @@ import (
 // PoolReconciler reconciles a Pool object.
 type PoolReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme              *runtime.Scheme
+	GatewayAPIAvailable bool
 }
 
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=pools,verbs=get;list;watch;create;update;patch;delete
@@ -30,6 +33,9 @@ type PoolReconciler struct {
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=pools/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=tlsroutes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=certificates,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=servers,verbs=get;list;watch
 
 func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -57,6 +63,50 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, fmt.Errorf("reconciling Service: %w", err)
 	}
 
+	// Reconcile TLSRoute
+	if pool.Spec.Route != nil && pool.Spec.Route.Enabled {
+		if !r.GatewayAPIAvailable {
+			logger.Info("TLSRoute requested but Gateway API CRDs not available, skipping")
+		} else {
+			// Check for hostname conflicts
+			allPools := &openvoxv1alpha1.PoolList{}
+			if err := r.List(ctx, allPools, client.InNamespace(pool.Namespace)); err != nil {
+				return ctrl.Result{}, fmt.Errorf("listing Pools for hostname conflict check: %w", err)
+			}
+			for i := range allPools.Items {
+				other := &allPools.Items[i]
+				if other.Name == pool.Name {
+					continue
+				}
+				if other.Spec.Route != nil && other.Spec.Route.Enabled && other.Spec.Route.Hostname == pool.Spec.Route.Hostname {
+					logger.Info("hostname conflict: another Pool uses the same hostname",
+						"conflictingPool", other.Name, "hostname", pool.Spec.Route.Hostname)
+				}
+			}
+
+			if err := r.reconcileTLSRoute(ctx, pool); err != nil {
+				return ctrl.Result{}, fmt.Errorf("reconciling TLSRoute: %w", err)
+			}
+
+			if pool.Spec.Route.InjectDNSAltName {
+				if err := r.injectDNSAltNames(ctx, pool); err != nil {
+					return ctrl.Result{}, fmt.Errorf("injecting DNS alt names: %w", err)
+				}
+			}
+		}
+	} else if r.GatewayAPIAvailable {
+		// Cleanup: delete owned TLSRoute if route is disabled
+		existing := &gwapiv1.TLSRoute{}
+		if err := r.Get(ctx, types.NamespacedName{Name: pool.Name, Namespace: pool.Namespace}, existing); err == nil {
+			if metav1.IsControlledBy(existing, pool) {
+				logger.Info("deleting orphaned TLSRoute", "name", pool.Name)
+				if err := r.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
+					return ctrl.Result{}, fmt.Errorf("deleting orphaned TLSRoute: %w", err)
+				}
+			}
+		}
+	}
+
 	// Update status
 	pool.Status.ServiceName = pool.Name
 	pool.Status.Endpoints = r.countEndpoints(ctx, pool)
@@ -68,10 +118,15 @@ func (r *PoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 }
 
 func (r *PoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&openvoxv1alpha1.Pool{}).
-		Owns(&corev1.Service{}).
-		Complete(r)
+		Owns(&corev1.Service{})
+
+	if r.GatewayAPIAvailable {
+		builder = builder.Owns(&gwapiv1.TLSRoute{})
+	}
+
+	return builder.Complete(r)
 }
 
 // poolServiceSelector builds the label selector for a Pool's Service.
@@ -197,4 +252,122 @@ func (r *PoolReconciler) countEndpoints(ctx context.Context, pool *openvoxv1alph
 		}
 	}
 	return count
+}
+
+func (r *PoolReconciler) reconcileTLSRoute(ctx context.Context, pool *openvoxv1alpha1.Pool) error {
+	logger := log.FromContext(ctx)
+
+	port := gwapiv1.PortNumber(8140)
+	if pool.Spec.Service.Port > 0 {
+		port = gwapiv1.PortNumber(pool.Spec.Service.Port)
+	}
+
+	hostname := gwapiv1.Hostname(pool.Spec.Route.Hostname)
+
+	parentRef := gwapiv1.ParentReference{
+		Name: gwapiv1.ObjectName(pool.Spec.Route.GatewayRef.Name),
+	}
+	if pool.Spec.Route.GatewayRef.SectionName != "" {
+		sectionName := gwapiv1.SectionName(pool.Spec.Route.GatewayRef.SectionName)
+		parentRef.SectionName = &sectionName
+	}
+
+	desired := &gwapiv1.TLSRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pool.Name,
+			Namespace: pool.Namespace,
+		},
+		Spec: gwapiv1.TLSRouteSpec{
+			CommonRouteSpec: gwapiv1.CommonRouteSpec{
+				ParentRefs: []gwapiv1.ParentReference{parentRef},
+			},
+			Hostnames: []gwapiv1.Hostname{hostname},
+			Rules: []gwapiv1.TLSRouteRule{
+				{
+					BackendRefs: []gwapiv1.BackendRef{
+						{
+							BackendObjectReference: gwapiv1.BackendObjectReference{
+								Name: gwapiv1.ObjectName(pool.Name),
+								Port: &port,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	existing := &gwapiv1.TLSRoute{}
+	err := r.Get(ctx, types.NamespacedName{Name: pool.Name, Namespace: pool.Namespace}, existing)
+	if errors.IsNotFound(err) {
+		logger.Info("creating TLSRoute", "name", pool.Name, "hostname", pool.Spec.Route.Hostname)
+		if err := controllerutil.SetControllerReference(pool, desired, r.Scheme); err != nil {
+			return err
+		}
+		return r.Create(ctx, desired)
+	} else if err != nil {
+		return err
+	}
+
+	// Update existing TLSRoute
+	existing.Spec = desired.Spec
+	return r.Update(ctx, existing)
+}
+
+func (r *PoolReconciler) injectDNSAltNames(ctx context.Context, pool *openvoxv1alpha1.Pool) error {
+	logger := log.FromContext(ctx)
+
+	servers := &openvoxv1alpha1.ServerList{}
+	if err := r.List(ctx, servers, client.InNamespace(pool.Namespace),
+		client.MatchingFields{"spec.environmentRef": pool.Spec.EnvironmentRef}); err != nil {
+		// Fall back to listing all servers and filtering manually
+		if err := r.List(ctx, servers, client.InNamespace(pool.Namespace)); err != nil {
+			return fmt.Errorf("listing Servers: %w", err)
+		}
+	}
+
+	hostname := pool.Spec.Route.Hostname
+
+	for i := range servers.Items {
+		server := &servers.Items[i]
+
+		if server.Spec.EnvironmentRef != pool.Spec.EnvironmentRef {
+			continue
+		}
+
+		// Check if this server matches the pool's selector
+		if serverName, ok := pool.Spec.Selector[LabelServer]; ok {
+			if server.Name != serverName {
+				continue
+			}
+		}
+
+		if server.Spec.CertificateRef == "" {
+			continue
+		}
+
+		cert := &openvoxv1alpha1.Certificate{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      server.Spec.CertificateRef,
+			Namespace: pool.Namespace,
+		}, cert); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("getting Certificate %s: %w", server.Spec.CertificateRef, err)
+		}
+
+		if slices.Contains(cert.Spec.DNSAltNames, hostname) {
+			continue
+		}
+
+		logger.Info("injecting DNS alt name into Certificate",
+			"certificate", cert.Name, "hostname", hostname)
+		cert.Spec.DNSAltNames = append(cert.Spec.DNSAltNames, hostname)
+		if err := r.Update(ctx, cert); err != nil {
+			return fmt.Errorf("updating Certificate %s: %w", cert.Name, err)
+		}
+	}
+
+	return nil
 }

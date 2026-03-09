@@ -5,11 +5,13 @@ import (
 	"os"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	openvoxv1alpha1 "github.com/slauger/openvox-operator/api/v1alpha1"
 	"github.com/slauger/openvox-operator/internal/controller"
@@ -23,6 +25,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(openvoxv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gwapiv1.Install(scheme))
 }
 
 func main() {
@@ -77,9 +80,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	gatewayAPIAvailable := false
+	if _, err := mgr.GetRESTMapper().RESTMapping(
+		schema.GroupKind{Group: "gateway.networking.k8s.io", Kind: "TLSRoute"},
+	); err == nil {
+		gatewayAPIAvailable = true
+		setupLog.Info("Gateway API detected, TLSRoute support enabled")
+	} else {
+		setupLog.Info("Gateway API not detected, TLSRoute support disabled")
+	}
+
 	if err = (&controller.PoolReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		GatewayAPIAvailable: gatewayAPIAvailable,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Pool")
 		os.Exit(1)

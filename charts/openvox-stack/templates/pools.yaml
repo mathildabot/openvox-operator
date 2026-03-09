@@ -11,4 +11,17 @@ spec:
   service:
     type: {{ $entry.service.type | default "ClusterIP" }}
     port: {{ $entry.service.port | default 8140 }}
+  {{- if and $entry.route $entry.route.enabled }}
+  route:
+    enabled: true
+    hostname: {{ $entry.route.hostname }}
+    gatewayRef:
+      name: {{ $.Values.gateway.name }}
+      {{- with $.Values.gateway.sectionName }}
+      sectionName: {{ . }}
+      {{- end }}
+    {{- if $entry.route.injectDNSAltName }}
+    injectDNSAltName: true
+    {{- end }}
+  {{- end }}
 {{- end }}
