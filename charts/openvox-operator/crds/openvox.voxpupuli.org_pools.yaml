@@ -58,6 +58,43 @@ spec:
                 description: EnvironmentRef references the Environment this Pool belongs
                   to.
                 type: string
+              route:
+                description: Route configures external access via Gateway API TLSRoute.
+                properties:
+                  enabled:
+                    default: false
+                    description: Enabled activates TLSRoute creation for this Pool.
+                    type: boolean
+                  gatewayRef:
+                    description: GatewayRef references the Gateway to attach the TLSRoute
+                      to.
+                    properties:
+                      name:
+                        description: Name of the Gateway.
+                        type: string
+                      sectionName:
+                        description: SectionName of the Gateway listener.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  hostname:
+                    description: Hostname is the SNI hostname (e.g. "production.puppet.example.com").
+                    type: string
+                  injectDNSAltName:
+                    default: false
+                    description: |-
+                      InjectDNSAltName automatically adds the hostname to the Certificate's dnsAltNames
+                      of all Servers selected by this Pool.
+                    type: boolean
+                required:
+                - enabled
+                type: object
+                x-kubernetes-validations:
+                - message: hostname is required when route is enabled
+                  rule: '!self.enabled || self.hostname != '''''
+                - message: gatewayRef.name is required when route is enabled
+                  rule: '!self.enabled || self.gatewayRef.name != '''''
               selector:
                 additionalProperties:
                   type: string

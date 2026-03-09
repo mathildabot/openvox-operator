@@ -45,6 +45,43 @@ type PoolSpec struct {
 	// Service defines the Kubernetes Service configuration.
 	// +optional
 	Service PoolServiceSpec `json:"service,omitempty"`
+
+	// Route configures external access via Gateway API TLSRoute.
+	// +optional
+	Route *PoolRouteSpec `json:"route,omitempty"`
+}
+
+// PoolRouteSpec configures a TLSRoute for SNI-based routing via Gateway API.
+// +kubebuilder:validation:XValidation:rule="!self.enabled || self.hostname != ''",message="hostname is required when route is enabled"
+// +kubebuilder:validation:XValidation:rule="!self.enabled || self.gatewayRef.name != ''",message="gatewayRef.name is required when route is enabled"
+type PoolRouteSpec struct {
+	// Enabled activates TLSRoute creation for this Pool.
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled"`
+
+	// Hostname is the SNI hostname (e.g. "production.puppet.example.com").
+	// +optional
+	Hostname string `json:"hostname,omitempty"`
+
+	// GatewayRef references the Gateway to attach the TLSRoute to.
+	// +optional
+	GatewayRef GatewayReference `json:"gatewayRef,omitempty"`
+
+	// InjectDNSAltName automatically adds the hostname to the Certificate's dnsAltNames
+	// of all Servers selected by this Pool.
+	// +kubebuilder:default=false
+	// +optional
+	InjectDNSAltName bool `json:"injectDNSAltName,omitempty"`
+}
+
+// GatewayReference identifies a Gateway resource.
+type GatewayReference struct {
+	// Name of the Gateway.
+	Name string `json:"name"`
+
+	// SectionName of the Gateway listener.
+	// +optional
+	SectionName string `json:"sectionName,omitempty"`
 }
 
 // PoolServiceSpec defines the Service managed by the Pool.
