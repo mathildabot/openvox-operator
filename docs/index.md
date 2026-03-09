@@ -30,7 +30,7 @@ The operator manages OpenVox Server environments through a set of Custom Resourc
 | **Server** | OpenVox Server instance pool (CA and/or server role) | Deployment |
 | **Pool** | Service + optional Gateway API TLSRoute for Server Pods | Service, TLSRoute (optional) |
 
-An **Environment** holds shared configuration, connects to PuppetDB, and manages [code deployment](concepts/code-deployment.md) via OCI image volumes or PVCs. A **CertificateAuthority** manages the CA infrastructure (PVC, setup Job, split Secrets for cert/key/CRL) and periodically refreshes the CRL. **SigningPolicy** resources define declarative rules for CSR approval (including DNS SAN validation). **Certificate** resources manage the lifecycle of individual certificates. **Server** resources reference a Certificate and can run as CA, server, or both. A **Pool** creates a Kubernetes Service that selects Server pods by label, with optional [Gateway API TLSRoute](concepts/gateway-api.md) support for SNI-based routing across a shared LoadBalancer.
+For details on the CRD hierarchy and design rationale, see [Architecture](concepts/architecture.md). Puppet code is deployed via [OCI image volumes or PVCs](concepts/code-deployment.md). Pools support optional [Gateway API TLSRoute](concepts/gateway-api.md) for SNI-based routing.
 
 ```mermaid
 graph TD
@@ -47,10 +47,6 @@ graph TD
     CA_D -->|mounts| CA_PVC["CA Data PVC"]
     CA_D -->|mounts| Code["Code (OCI Image or PVC)"]
 ```
-
-An **Environment** is the root resource - it holds shared configuration (puppet.conf, PuppetDB connection) and manages code deployment. A **CertificateAuthority** initializes the CA infrastructure and periodically refreshes the CRL. Each **Certificate** is signed by the CA and stored as a Kubernetes Secret. A **Server** references a Certificate and creates a Deployment - it can run as CA, catalog server, or both. **Pools** create Services that select Server pods by label, with optional [Gateway API TLSRoute](concepts/gateway-api.md) for SNI-based routing.
-
-Puppet code is mounted into Server pods via **OCI image volumes** (immutable, automatic rollout on image change, K8s 1.31+) or a **PVC** (mutable, externally managed). See [Code Deployment](concepts/code-deployment.md) for details.
 
 ## Traffic Flow
 

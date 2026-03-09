@@ -1,5 +1,5 @@
 site_name: OpenVox Operator
-site_description: A Kubernetes Operator for running OpenVox Server environments on Kubernetes and OpenShift
+site_description: A Kubernetes Operator that maps OpenVox Server infrastructure onto native building blocks for running Puppet on Kubernetes and OpenShift
 site_url: https://slauger.github.io/openvox-operator
 repo_url: https://github.com/slauger/openvox-operator
 repo_name: slauger/openvox-operator
@@ -55,7 +55,7 @@ nav:
   - Concepts:
       - Architecture: concepts/architecture.md
       - Code Deployment: concepts/code-deployment.md
-      - Kubernetes-Native Design: concepts/kubernetes-native.md
+      - Gateway API: concepts/gateway-api.md
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
