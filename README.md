@@ -6,7 +6,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/slauger/openvox-operator.svg)](https://pkg.go.dev/github.com/slauger/openvox-operator)
 [![License](https://img.shields.io/github/license/slauger/openvox-operator)](LICENSE)
 
-A Kubernetes Operator that maps [OpenVox Server](https://github.com/OpenVoxProject) infrastructure onto native building blocks — CRDs, Secrets, OCI image volumes, and Gateway API — for running Puppet on **Kubernetes** and **OpenShift**.
+A Kubernetes Operator that maps [OpenVox Server](https://github.com/OpenVoxProject) infrastructure onto native building blocks - CRDs, Secrets, OCI image volumes, and Gateway API - for running Puppet on **Kubernetes** and **OpenShift**.
 
 - 🔐 **Automated CA Lifecycle** - CA initialization, certificate signing, distribution, and periodic CRL refresh - fully managed
 - 📜 **Declarative Signing Policies** - CSR approval via patterns, DNS SANs, CSR attributes, or open signing - no autosign scripts
@@ -50,21 +50,24 @@ graph TD
     CN_D -->|mounts| Code
 ```
 
+An **Environment** is the root resource - it holds shared configuration (puppet.conf, PuppetDB connection) and manages code deployment. A **CertificateAuthority** initializes the CA infrastructure and periodically refreshes the CRL. Each **Certificate** is signed by the CA and stored as a Kubernetes Secret. A **Server** references a Certificate and creates a Deployment - it can run as CA, catalog server, or both. **Pools** create Services that select Server pods by label, with optional Gateway API TLSRoute for SNI-based routing.
+
+Puppet code is mounted into Server pods via **OCI image volumes** (immutable, automatic rollout on image change, K8s 1.31+) or a **PVC** (mutable, externally managed). See [Code Deployment](docs/concepts/code-deployment.md) for details.
+
 ### Pool Traffic Flow
 
-Pools can expose Servers via dedicated LoadBalancer Services or share a single LoadBalancer using Gateway API TLSRoute with SNI-based routing:
+Each Pool owns a Kubernetes Service that selects Server pods. The CA server can be member of both pools - handling CA requests via its dedicated pool and also serving catalog requests through the server pool.
+
+**LoadBalancer Services** - each Pool gets its own external IP:
 
 ```mermaid
 graph LR
-    Agent["🖥️ Agents"] --> GW
+    Agent["🖥️ Agents"] --> LB
     Agent --> CA_SVC
 
     subgraph Kubernetes
-        GW["🌐 Gateway<br/>(shared LoadBalancer)"]
-        CA_SVC["🔐 Pool: puppet-ca<br/>Service (ClusterIP)"]
-
-        GW -->|"TLSRoute<br/>SNI: puppet.example.com"| LB["Pool: puppet<br/>Service (ClusterIP)"]
-        GW -->|"TLSRoute<br/>SNI: puppet-ca.example.com"| CA_SVC
+        LB["🌐 Pool: puppet<br/>Service (LoadBalancer)"]
+        CA_SVC["🔐 Pool: puppet-ca<br/>Service (LoadBalancer)"]
 
         LB --> CA["🔐 Server: ca<br/>replicas: 1"]
         LB --> Stable["⚙️ Server: stable<br/>replicas: 3 - v8.12.1"]
@@ -74,7 +77,27 @@ graph LR
     end
 ```
 
-The CA server can be member of both pools - it handles CA requests via the `puppet-ca` service and can also serve catalog requests from external agents via the `puppet` service. Gateway API support is optional - Pools work with plain LoadBalancer/NodePort Services without it.
+**Gateway API TLSRoute** - all Pools share a single LoadBalancer, routed by SNI hostname:
+
+```mermaid
+graph LR
+    Agent["🖥️ Agents"] --> GW
+
+    subgraph Kubernetes
+        GW["🌐 Gateway<br/>(shared LoadBalancer)"]
+
+        GW --> TR1["🔀 TLSRoute<br/>puppet.example.com"]
+        GW --> TR2["🔀 TLSRoute<br/>puppet-ca.example.com"]
+        TR1 --> LB["Pool: puppet<br/>Service (ClusterIP)"]
+        TR2 --> CA_SVC["🔐 Pool: puppet-ca<br/>Service (ClusterIP)"]
+
+        LB --> CA["🔐 Server: ca<br/>replicas: 1"]
+        LB --> Stable["⚙️ Server: stable<br/>replicas: 3 - v8.12.1"]
+        LB --> Canary["⚙️ Server: canary<br/>replicas: 1 - v8.13.0"]
+
+        CA_SVC --> CA
+    end
+```
 
 ## CRD Model
 
@@ -111,7 +134,8 @@ This operator takes a **Kubernetes-native approach** that differs in several key
 | **CSR Signing** | `autosign.conf` or Ruby scripts | `SigningPolicy` CRD with declarative rules (any, pattern, DNS SANs, CSR attributes) |
 | **CRL** | File on disk, manual refresh | Split Secret (`{ca}-ca-crl`), operator-driven periodic refresh via CA HTTP API |
 | **Scaling** | Horizontal scaling possible but requires manual setup of additional server VMs | Horizontal via Deployment replicas and HPA |
-| **Code Deployment** | r10k installed on the VM, triggered by cron or webhook | OCI image volumes or PVC — code packaged as immutable container images |
+| **Code Deployment** | r10k installed on the VM, triggered by cron or webhook | OCI image volumes or PVC - code packaged as immutable container images |
+| **Traffic Routing** | DNS round-robin or hardware load balancer per environment | Gateway API TLSRoute with SNI-based routing - share a single LoadBalancer across environments |
 | **Multi-Version** | Separate VMs or manual package pinning | Multiple `Server` CRDs in the same `Pool` with different image tags |
 
 By eliminating system Ruby from the runtime image, the container has a smaller footprint and a reduced attack surface, avoiding the duplicate Ruby installation (CRuby + JRuby) that the OS packages carry.

@@ -1,6 +1,6 @@
 # OpenVox Operator
 
-A Kubernetes Operator that maps [OpenVox Server](https://github.com/OpenVoxProject) infrastructure onto native building blocks — CRDs, Secrets, OCI image volumes, and Gateway API — for running Puppet on **Kubernetes** and **OpenShift**.
+A Kubernetes Operator that maps [OpenVox Server](https://github.com/OpenVoxProject) infrastructure onto native building blocks - CRDs, Secrets, OCI image volumes, and Gateway API - for running Puppet on **Kubernetes** and **OpenShift**.
 
 ## Features
 
@@ -48,21 +48,24 @@ graph TD
     CA_D -->|mounts| Code["Code (OCI Image or PVC)"]
 ```
 
+An **Environment** is the root resource - it holds shared configuration (puppet.conf, PuppetDB connection) and manages code deployment. A **CertificateAuthority** initializes the CA infrastructure and periodically refreshes the CRL. Each **Certificate** is signed by the CA and stored as a Kubernetes Secret. A **Server** references a Certificate and creates a Deployment - it can run as CA, catalog server, or both. **Pools** create Services that select Server pods by label, with optional [Gateway API TLSRoute](concepts/gateway-api.md) for SNI-based routing.
+
+Puppet code is mounted into Server pods via **OCI image volumes** (immutable, automatic rollout on image change, K8s 1.31+) or a **PVC** (mutable, externally managed). See [Code Deployment](concepts/code-deployment.md) for details.
+
 ## Traffic Flow
 
-Agents connect to a Pool Service which load-balances across all Servers in the pool. Pools can use dedicated LoadBalancer Services or share a single LoadBalancer via Gateway API TLSRoute with SNI-based routing:
+Each Pool owns a Kubernetes Service that selects Server pods. The CA server can participate in both pools - handling CA requests via its dedicated pool and also serving catalog requests through the server pool.
+
+**LoadBalancer Services** - each Pool gets its own external IP:
 
 ```mermaid
 graph LR
-    Agent["Agents"] --> GW
+    Agent["Agents"] --> LB
     Agent --> CA_SVC
 
     subgraph Kubernetes
-        GW["Gateway<br/>(shared LoadBalancer)"]
-        CA_SVC["Pool: puppet-ca<br/>Service (ClusterIP)"]
-
-        GW -->|"TLSRoute<br/>SNI: puppet.example.com"| LB["Pool: puppet<br/>Service (ClusterIP)"]
-        GW -->|"TLSRoute<br/>SNI: puppet-ca.example.com"| CA_SVC
+        LB["Pool: puppet<br/>Service (LoadBalancer)"]
+        CA_SVC["Pool: puppet-ca<br/>Service (LoadBalancer)"]
 
         LB --> CA["Server: ca<br/>replicas: 1"]
         LB --> Stable["Server: stable<br/>replicas: 3"]
@@ -72,7 +75,27 @@ graph LR
     end
 ```
 
-The CA server can participate in both pools - handling CA requests via the dedicated CA pool and also serving catalog requests through the server pool. Gateway API support is optional - Pools work with plain LoadBalancer/NodePort Services without it.
+**Gateway API TLSRoute** - all Pools share a single LoadBalancer, routed by SNI hostname:
+
+```mermaid
+graph LR
+    Agent["Agents"] --> GW
+
+    subgraph Kubernetes
+        GW["Gateway<br/>(shared LoadBalancer)"]
+
+        GW --> TR1["TLSRoute<br/>puppet.example.com"]
+        GW --> TR2["TLSRoute<br/>puppet-ca.example.com"]
+        TR1 --> LB["Pool: puppet<br/>Service (ClusterIP)"]
+        TR2 --> CA_SVC["Pool: puppet-ca<br/>Service (ClusterIP)"]
+
+        LB --> CA["Server: ca<br/>replicas: 1"]
+        LB --> Stable["Server: stable<br/>replicas: 3"]
+        LB --> Canary["Server: canary<br/>replicas: 1"]
+
+        CA_SVC --> CA
+    end
+```
 
 ## License
 
