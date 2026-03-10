@@ -186,6 +186,10 @@ spec:
                         type: boolean
                     type: object
                 type: object
+              nodeClassifierRef:
+                description: NodeClassifierRef references the NodeClassifier used
+                  by this Config.
+                type: string
               puppet:
                 description: Puppet defines shared puppet.conf settings.
                 properties:

@@ -60,6 +60,10 @@ type ConfigSpec struct {
 	// +optional
 	Metrics *MetricsSpec `json:"metrics,omitempty"`
 
+	// NodeClassifierRef references the NodeClassifier used by this Config.
+	// +optional
+	NodeClassifierRef string `json:"nodeClassifierRef,omitempty"`
+
 	// Code defines the Puppet code source for all Servers in this Config.
 	// Only applied to Servers with server=true.
 	// +optional
