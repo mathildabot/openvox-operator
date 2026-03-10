@@ -61,13 +61,7 @@ local-build: ## Build all images for local development (Docker Desktop K8s).
 	@echo "Built openvox-server:$(LOCAL_TAG)"
 
 .PHONY: local-deploy
-local-deploy: local-build install ## Build images, install CRDs, and deploy operator via Helm.
-	helm upgrade --install openvox-operator charts/openvox-operator \
-		--namespace $(NAMESPACE) --create-namespace \
-		--set image.repository=openvox-operator \
-		--set image.tag=$(LOCAL_TAG) \
-		--set image.pullPolicy=Never \
-		--set podAnnotations.imageId=$$($(CONTAINER_TOOL) image inspect openvox-operator:$(LOCAL_TAG) --format '{{.Id}}')
+local-deploy: local-build local-install ## Build images and deploy operator via Helm.
 	@echo ""
 	@echo "Operator deployed with openvox-operator:$(LOCAL_TAG)"
 
@@ -88,8 +82,17 @@ local-stack: ## Deploy openvox-stack via Helm with local images.
 ##@ Deployment
 
 .PHONY: install
-install: manifests ## Install CRDs into the cluster.
-	kubectl apply -f config/crd/bases/
+install: manifests ## Install operator via Helm with default images.
+	helm upgrade --install openvox-operator charts/openvox-operator \
+		--namespace $(NAMESPACE) --create-namespace
+
+.PHONY: local-install
+local-install: manifests ## Install operator via Helm with local images (no build).
+	helm upgrade --install openvox-operator charts/openvox-operator \
+		--namespace $(NAMESPACE) --create-namespace \
+		--set image.repository=openvox-operator \
+		--set image.tag=$(LOCAL_TAG) \
+		--set image.pullPolicy=Never
 
 .PHONY: uninstall
 uninstall: ## Remove stack, operator, and CRDs from the cluster.
