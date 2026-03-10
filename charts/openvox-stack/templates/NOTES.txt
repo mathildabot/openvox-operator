@@ -10,8 +10,15 @@ Resources created:
 
   Config:               {{ include "openvox-stack.configName" . }}
   CertificateAuthority: {{ include "openvox-stack.caName" . }}
-{{- if .Values.signingPolicy.enabled }}
-  SigningPolicy:        {{ include "openvox-stack.signingPolicyName" . }}
+{{- if .Values.signingPolicies }}
+  SigningPolicies:
+{{- range .Values.signingPolicies }}
+    - {{ .name }}
+{{- end }}
+{{- else }}
+
+  WARNING: No signing policies configured. CSR signing is disabled.
+           To enable, add signingPolicies to your values.yaml.
 {{- end }}
 {{- if .Values.nodeClassifier.enabled }}
   NodeClassifier:       {{ include "openvox-stack.nodeClassifierName" . }}
