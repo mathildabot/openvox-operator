@@ -1,3 +1,7 @@
+signingPolicies:
+  - name: autosign-any
+    any: true
+
 servers:
   - name: ca
     ca: true

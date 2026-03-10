@@ -25,13 +25,14 @@ CertificateAuthority name.
 {{- end }}
 
 {{/*
-SigningPolicy name.
+SigningPolicy name for array entries.
+Usage: include "openvox-stack.signingPolicyName" (dict "root" $ "entry" $entry "index" $i)
 */}}
 {{- define "openvox-stack.signingPolicyName" -}}
-{{- if .Values.signingPolicy.name -}}
-{{- .Values.signingPolicy.name }}
+{{- if .entry.name -}}
+{{- .entry.name }}
 {{- else -}}
-{{- include "openvox-stack.fullname" . }}-autosign
+{{- printf "%s-signing-policy-%d" (include "openvox-stack.fullname" .root) .index | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 

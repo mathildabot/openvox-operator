@@ -26,10 +26,14 @@ ca:
     size: 1Gi
     storageClass: ""
 
-signingPolicy:
-  enabled: true
-  name: ""             # default: {fullname}-autosign
-  any: true
+signingPolicies: []
+# signingPolicies:
+#   - name: autosign-any
+#     any: true
+#   - name: preshared-key
+#     csrAttributes:
+#       - name: pp_preshared_key
+#         value: "my-secret-token"
 
 nodeClassifier:
   enabled: false

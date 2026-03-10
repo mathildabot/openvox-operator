@@ -1,9 +1,41 @@
-{{- if .Values.signingPolicy.enabled }}
+{{- range $i, $entry := .Values.signingPolicies }}
+---
 apiVersion: openvox.voxpupuli.org/v1alpha1
 kind: SigningPolicy
 metadata:
-  name: {{ include "openvox-stack.signingPolicyName" . }}
+  name: {{ include "openvox-stack.signingPolicyName" (dict "root" $ "entry" $entry "index" $i) }}
 spec:
-  certificateAuthorityRef: {{ include "openvox-stack.caName" . }}
-  any: {{ .Values.signingPolicy.any }}
+  certificateAuthorityRef: {{ include "openvox-stack.caName" $ }}
+  {{- if $entry.any }}
+  any: true
+  {{- end }}
+  {{- with $entry.pattern }}
+  pattern:
+    allow:
+      {{- range .allow }}
+      - {{ . | quote }}
+      {{- end }}
+  {{- end }}
+  {{- with $entry.dnsAltNames }}
+  dnsAltNames:
+    allow:
+      {{- range .allow }}
+      - {{ . | quote }}
+      {{- end }}
+  {{- end }}
+  {{- with $entry.csrAttributes }}
+  csrAttributes:
+    {{- range . }}
+    - name: {{ .name }}
+      {{- if .value }}
+      value: {{ .value | quote }}
+      {{- end }}
+      {{- if .valueFrom }}
+      valueFrom:
+        secretKeyRef:
+          name: {{ .valueFrom.secretKeyRef.name }}
+          key: {{ .valueFrom.secretKeyRef.key }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
 {{- end }}

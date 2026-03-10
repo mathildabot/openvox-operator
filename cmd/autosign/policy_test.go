@@ -203,7 +203,7 @@ func TestEvaluatePolicy_CSRAttributes(t *testing.T) {
 	csr := generateCSR(t, "node1", nil, []pkix.Extension{ext})
 
 	policy := Policy{
-		Name: "env-check",
+		Name:    "env-check",
 		Pattern: &PatternConf{Allow: []string{"*"}},
 		CSRAttributes: []CSRAttributeConf{
 			{Name: "pp_environment", Value: "production"},
@@ -224,7 +224,7 @@ func TestEvaluatePolicy_CSRAttributeNotPresent(t *testing.T) {
 	csr := generateCSR(t, "node1", nil, nil)
 
 	policy := Policy{
-		Name: "env-check",
+		Name:    "env-check",
 		Pattern: &PatternConf{Allow: []string{"*"}},
 		CSRAttributes: []CSRAttributeConf{
 			{Name: "pp_environment", Value: "production"},
