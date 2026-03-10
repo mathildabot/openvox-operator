@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: servers.openvox.voxpupuli.org
 spec:
   group: openvox.voxpupuli.org
@@ -117,9 +117,11 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: image and claimName are mutually exclusive
-                  rule: '!(self.image != '''' && self.claimName != '''')'
+                  rule: '!(has(self.image) && self.image != ” && has(self.claimName)
+                    && self.claimName != ”)'
                 - message: either image or claimName must be set
-                  rule: self.image != '' || self.claimName != ''
+                  rule: (has(self.image) && self.image != ”) || (has(self.claimName)
+                    && self.claimName != ”)
               configRef:
                 description: ConfigRef references the Config this Server belongs to.
                 type: string
