@@ -106,6 +106,7 @@ func (r *CertificateAuthorityReconciler) Reconcile(ctx context.Context, req ctrl
 	}
 
 	// CA is ready
+	wasReady := ca.Status.Phase == openvoxv1alpha1.CertificateAuthorityPhaseReady
 	caSecretName := fmt.Sprintf("%s-ca", ca.Name)
 	ca.Status.Phase = openvoxv1alpha1.CertificateAuthorityPhaseReady
 	ca.Status.CASecretName = caSecretName
@@ -121,7 +122,9 @@ func (r *CertificateAuthorityReconciler) Reconcile(ctx context.Context, req ctrl
 		return ctrl.Result{}, err
 	}
 
-	r.Recorder.Event(ca, corev1.EventTypeNormal, EventReasonCAInitialized, "CA is initialized and ready")
+	if !wasReady {
+		r.Recorder.Event(ca, corev1.EventTypeNormal, EventReasonCAInitialized, "CA is initialized and ready")
+	}
 
 	// Periodic CRL refresh: fetch CRL from CA service and update the CRL secret
 	crlResult, err := r.reconcileCRLRefresh(ctx, ca)
