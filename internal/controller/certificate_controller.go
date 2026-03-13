@@ -74,7 +74,9 @@ func (r *CertificateReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if ca.Status.Phase != openvoxv1alpha1.CertificateAuthorityPhaseReady {
 		logger.Info("waiting for CertificateAuthority to be ready", "ca", ca.Name, "phase", ca.Status.Phase)
 		cert.Status.Phase = openvoxv1alpha1.CertificatePhasePending
-		_ = r.Status().Update(ctx, cert)
+		if statusErr := r.Status().Update(ctx, cert); statusErr != nil {
+			logger.Error(statusErr, "failed to update Certificate status", "name", cert.Name)
+		}
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
@@ -127,7 +129,9 @@ func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *
 	}
 
 	cert.Status.Phase = openvoxv1alpha1.CertificatePhaseRequesting
-	_ = r.Status().Update(ctx, cert)
+	if statusErr := r.Status().Update(ctx, cert); statusErr != nil {
+		logger.Error(statusErr, "failed to update Certificate status", "name", cert.Name)
+	}
 
 	result, err := r.signCertificate(ctx, cert, ca, caServiceName, cert.Namespace)
 	if err != nil {
@@ -140,7 +144,9 @@ func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *
 			Message:            err.Error(),
 			LastTransitionTime: metav1.Now(),
 		})
-		_ = r.Status().Update(ctx, cert)
+		if statusErr := r.Status().Update(ctx, cert); statusErr != nil {
+			logger.Error(statusErr, "failed to update Certificate status", "name", cert.Name)
+		}
 		if result.RequeueAfter > 0 {
 			return result, nil
 		}

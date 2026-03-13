@@ -525,7 +525,9 @@ func (r *CertificateAuthorityReconciler) reconcileCASetupJob(ctx context.Context
 
 	// CA not ready — run setup job
 	ca.Status.Phase = openvoxv1alpha1.CertificateAuthorityPhaseInitializing
-	_ = r.Status().Update(ctx, ca)
+	if statusErr := r.Status().Update(ctx, ca); statusErr != nil {
+		logger.Error(statusErr, "failed to update CertificateAuthority status", "name", ca.Name)
+	}
 
 	jobName := fmt.Sprintf("%s-ca-setup", ca.Name)
 	job := r.buildCASetupJob(ctx, ca, cfg, jobName, certs)

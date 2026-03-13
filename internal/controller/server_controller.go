@@ -93,7 +93,9 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if cert.Status.Phase != openvoxv1alpha1.CertificatePhaseSigned || cert.Status.SecretName == "" {
 		logger.Info("waiting for Certificate to be signed", "certificate", cert.Name, "phase", cert.Status.Phase)
 		server.Status.Phase = openvoxv1alpha1.ServerPhaseWaitingForCert
-		_ = r.Status().Update(ctx, server)
+		if statusErr := r.Status().Update(ctx, server); statusErr != nil {
+			logger.Error(statusErr, "failed to update Server status", "name", server.Name)
+		}
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 

@@ -340,5 +340,7 @@ func (r *ReportProcessorReconciler) updateReportProcessorStatus(ctx context.Cont
 			LastTransitionTime: metav1.Now(),
 		})
 	}
-	_ = r.Status().Update(ctx, rp)
+	if statusErr := r.Status().Update(ctx, rp); statusErr != nil {
+		log.FromContext(ctx).Error(statusErr, "failed to update ReportProcessor status", "name", rp.Name)
+	}
 }

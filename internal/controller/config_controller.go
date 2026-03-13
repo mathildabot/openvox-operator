@@ -1251,7 +1251,9 @@ func (r *ConfigReconciler) updateSigningPolicyStatus(ctx context.Context, sp *op
 			LastTransitionTime: metav1.Now(),
 		})
 	}
-	_ = r.Status().Update(ctx, sp)
+	if statusErr := r.Status().Update(ctx, sp); statusErr != nil {
+		log.FromContext(ctx).Error(statusErr, "failed to update SigningPolicy status", "name", sp.Name)
+	}
 }
 
 // enqueueConfigsForSigningPolicy maps SigningPolicy changes to Config reconciles.
@@ -1473,7 +1475,9 @@ func (r *ConfigReconciler) updateNodeClassifierStatus(ctx context.Context, nc *o
 			LastTransitionTime: metav1.Now(),
 		})
 	}
-	_ = r.Status().Update(ctx, nc)
+	if statusErr := r.Status().Update(ctx, nc); statusErr != nil {
+		log.FromContext(ctx).Error(statusErr, "failed to update NodeClassifier status", "name", nc.Name)
+	}
 }
 
 // enqueueConfigsForNodeClassifier maps NodeClassifier changes to Config reconciles.
