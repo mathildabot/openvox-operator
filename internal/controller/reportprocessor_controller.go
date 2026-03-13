@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -21,6 +20,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	openvoxv1alpha1 "github.com/slauger/openvox-operator/api/v1alpha1"
+
+	"gopkg.in/yaml.v3"
 )
 
 // ReportProcessorReconciler reconciles ReportProcessor objects.
@@ -32,7 +33,8 @@ type ReportProcessorReconciler struct {
 
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=reportprocessors,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=openvox.voxpupuli.org,resources=reportprocessors/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=secrets;configmaps,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *ReportProcessorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -46,20 +48,18 @@ func (r *ReportProcessorReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	// Find the Config that references this ReportProcessor
-	cfgList := &openvoxv1alpha1.ConfigList{}
-	if err := r.List(ctx, cfgList, client.InNamespace(rp.Namespace)); err != nil {
+	// Look up the Config referenced by this ReportProcessor
+	cfg := &openvoxv1alpha1.Config{}
+	if err := r.Get(ctx, types.NamespacedName{Name: rp.Spec.ConfigRef, Namespace: rp.Namespace}, cfg); err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
 		return ctrl.Result{}, err
 	}
 
-	// Find Configs that have ReportProcessors with matching configRef
-	for _, cfg := range cfgList.Items {
-		if rp.Spec.ConfigRef == cfg.Name {
-			logger.Info("reconciling report-webhook Secret", "config", cfg.Name)
-			if err := r.reconcileReportWebhookSecret(ctx, &cfg); err != nil {
-				return ctrl.Result{}, fmt.Errorf("reconciling report-webhook Secret: %w", err)
-			}
-		}
+	logger.Info("reconciling report-webhook Secret", "config", cfg.Name)
+	if err := r.reconcileReportWebhookSecret(ctx, cfg); err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconciling report-webhook Secret: %w", err)
 	}
 
 	return ctrl.Result{}, nil
@@ -164,49 +164,87 @@ func (r *ReportProcessorReconciler) reconcileReportWebhookSecret(ctx context.Con
 	return r.Update(ctx, existing)
 }
 
+// reportWebhookConfig mirrors the YAML structure read by openvox-report.
+type reportWebhookConfig struct {
+	Endpoints []reportEndpointConfig `yaml:"endpoints"`
+}
+
+type reportEndpointConfig struct {
+	Name           string               `yaml:"name"`
+	Processor      string               `yaml:"processor,omitempty"`
+	URL            string               `yaml:"url"`
+	TimeoutSeconds int32                `yaml:"timeoutSeconds"`
+	Auth           *reportAuthConfig    `yaml:"auth,omitempty"`
+	SSL            reportSSLConfig      `yaml:"ssl"`
+	Headers        []reportHeaderConfig `yaml:"headers,omitempty"`
+}
+
+type reportAuthConfig struct {
+	Type     string `yaml:"type"`
+	Header   string `yaml:"header,omitempty"`
+	Token    string `yaml:"token,omitempty"`
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+}
+
+type reportSSLConfig struct {
+	CertFile string `yaml:"certFile"`
+	KeyFile  string `yaml:"keyFile"`
+	CAFile   string `yaml:"caFile"`
+}
+
+type reportHeaderConfig struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
+}
+
 // renderReportWebhookConfig renders the report-webhook.yaml that openvox-report reads.
 func (r *ReportProcessorReconciler) renderReportWebhookConfig(ctx context.Context, namespace string, processors []openvoxv1alpha1.ReportProcessor) (string, error) {
-	var sb strings.Builder
-	sb.WriteString("endpoints:\n")
+	var endpoints []reportEndpointConfig
 
 	for _, rp := range processors {
-		fmt.Fprintf(&sb, "  - name: %s\n", rp.Name)
-		if rp.Spec.Processor != "" {
-			fmt.Fprintf(&sb, "    processor: %s\n", rp.Spec.Processor)
-		}
-		fmt.Fprintf(&sb, "    url: %s\n", rp.Spec.URL)
-
 		timeout := int32(30)
 		if rp.Spec.TimeoutSeconds != 0 {
 			timeout = rp.Spec.TimeoutSeconds
 		}
-		fmt.Fprintf(&sb, "    timeoutSeconds: %d\n", timeout)
+
+		ep := reportEndpointConfig{
+			Name:           rp.Name,
+			Processor:      rp.Spec.Processor,
+			URL:            rp.Spec.URL,
+			TimeoutSeconds: timeout,
+			SSL: reportSSLConfig{
+				CertFile: "/etc/puppetlabs/puppet/ssl/certs/puppet.pem",
+				KeyFile:  "/etc/puppetlabs/puppet/ssl/private_keys/puppet.pem",
+				CAFile:   "/etc/puppetlabs/puppet/ssl/certs/ca.pem",
+			},
+		}
 
 		// Auth
 		if rp.Spec.Auth != nil {
-			sb.WriteString("    auth:\n")
+			auth := &reportAuthConfig{}
 			switch {
 			case rp.Spec.Auth.MTLS:
-				sb.WriteString("      type: mtls\n")
+				auth.Type = "mtls"
 			case rp.Spec.Auth.Token != nil:
-				sb.WriteString("      type: token\n")
-				fmt.Fprintf(&sb, "      header: %s\n", rp.Spec.Auth.Token.Header)
+				auth.Type = "token"
+				auth.Header = rp.Spec.Auth.Token.Header
 				token, err := r.resolveSecretKey(ctx, namespace,
 					rp.Spec.Auth.Token.SecretKeyRef.Name, rp.Spec.Auth.Token.SecretKeyRef.Key)
 				if err != nil {
 					return "", fmt.Errorf("resolving token secret for %s: %w", rp.Name, err)
 				}
-				fmt.Fprintf(&sb, "      token: %s\n", token)
+				auth.Token = token
 			case rp.Spec.Auth.Bearer != nil:
-				sb.WriteString("      type: bearer\n")
+				auth.Type = "bearer"
 				token, err := r.resolveSecretKey(ctx, namespace,
 					rp.Spec.Auth.Bearer.SecretKeyRef.Name, rp.Spec.Auth.Bearer.SecretKeyRef.Key)
 				if err != nil {
 					return "", fmt.Errorf("resolving bearer secret for %s: %w", rp.Name, err)
 				}
-				fmt.Fprintf(&sb, "      token: %s\n", token)
+				auth.Token = token
 			case rp.Spec.Auth.Basic != nil:
-				sb.WriteString("      type: basic\n")
+				auth.Type = "basic"
 				username, err := r.resolveSecretKey(ctx, namespace,
 					rp.Spec.Auth.Basic.SecretRef.Name, rp.Spec.Auth.Basic.SecretRef.UsernameKey)
 				if err != nil {
@@ -217,45 +255,42 @@ func (r *ReportProcessorReconciler) renderReportWebhookConfig(ctx context.Contex
 				if err != nil {
 					return "", fmt.Errorf("resolving basic auth password for %s: %w", rp.Name, err)
 				}
-				fmt.Fprintf(&sb, "      username: %s\n", username)
-				fmt.Fprintf(&sb, "      password: %s\n", password)
+				auth.Username = username
+				auth.Password = password
 			}
+			ep.Auth = auth
 		}
-
-		// SSL paths (for mTLS or server verification)
-		sb.WriteString("    ssl:\n")
-		sb.WriteString("      certFile: /etc/puppetlabs/puppet/ssl/certs/puppet.pem\n")
-		sb.WriteString("      keyFile: /etc/puppetlabs/puppet/ssl/private_keys/puppet.pem\n")
-		sb.WriteString("      caFile: /etc/puppetlabs/puppet/ssl/certs/ca.pem\n")
 
 		// Headers
-		if len(rp.Spec.Headers) > 0 {
-			sb.WriteString("    headers:\n")
-			for _, h := range rp.Spec.Headers {
-				fmt.Fprintf(&sb, "      - name: %s\n", h.Name)
-				value := h.Value
-				if h.ValueFrom != nil {
-					var err error
-					if h.ValueFrom.SecretKeyRef != nil {
-						value, err = r.resolveSecretKey(ctx, namespace,
-							h.ValueFrom.SecretKeyRef.Name, h.ValueFrom.SecretKeyRef.Key)
-						if err != nil {
-							return "", fmt.Errorf("resolving header secret for %s: %w", rp.Name, err)
-						}
-					} else if h.ValueFrom.ConfigMapKeyRef != nil {
-						value, err = r.resolveConfigMapKey(ctx, namespace,
-							h.ValueFrom.ConfigMapKeyRef.Name, h.ValueFrom.ConfigMapKeyRef.Key)
-						if err != nil {
-							return "", fmt.Errorf("resolving header configmap for %s: %w", rp.Name, err)
-						}
+		for _, h := range rp.Spec.Headers {
+			value := h.Value
+			if h.ValueFrom != nil {
+				var err error
+				if h.ValueFrom.SecretKeyRef != nil {
+					value, err = r.resolveSecretKey(ctx, namespace,
+						h.ValueFrom.SecretKeyRef.Name, h.ValueFrom.SecretKeyRef.Key)
+					if err != nil {
+						return "", fmt.Errorf("resolving header secret for %s: %w", rp.Name, err)
+					}
+				} else if h.ValueFrom.ConfigMapKeyRef != nil {
+					value, err = r.resolveConfigMapKey(ctx, namespace,
+						h.ValueFrom.ConfigMapKeyRef.Name, h.ValueFrom.ConfigMapKeyRef.Key)
+					if err != nil {
+						return "", fmt.Errorf("resolving header configmap for %s: %w", rp.Name, err)
 					}
 				}
-				fmt.Fprintf(&sb, "        value: %s\n", value)
 			}
+			ep.Headers = append(ep.Headers, reportHeaderConfig{Name: h.Name, Value: value})
 		}
+
+		endpoints = append(endpoints, ep)
 	}
 
-	return sb.String(), nil
+	out, err := yaml.Marshal(reportWebhookConfig{Endpoints: endpoints})
+	if err != nil {
+		return "", fmt.Errorf("marshaling report-webhook config: %w", err)
+	}
+	return string(out), nil
 }
 
 // resolveSecretKey reads a specific key from a Secret.

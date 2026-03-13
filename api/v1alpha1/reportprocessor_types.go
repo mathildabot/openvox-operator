@@ -34,6 +34,7 @@ type ReportProcessorList struct {
 // ReportProcessorSpec defines the desired state of ReportProcessor.
 type ReportProcessorSpec struct {
 	// ConfigRef references the Config this ReportProcessor belongs to.
+	// +kubebuilder:validation:MinLength=1
 	ConfigRef string `json:"configRef"`
 
 	// Processor is the report processor type.

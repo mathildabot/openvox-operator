@@ -7,14 +7,14 @@ import (
 
 // PuppetDBCommand is the PuppetDB Wire Format v8 command envelope.
 type PuppetDBCommand struct {
-	Command string      `json:"command"`
-	Version int         `json:"version"`
-	Payload interface{} `json:"payload"`
+	Command string `json:"command"`
+	Version int    `json:"version"`
+	Payload any    `json:"payload"`
 }
 
 // transformToPuppetDB wraps a Puppet report in PuppetDB Wire Format v8 command envelope.
 func transformToPuppetDB(reportJSON []byte) ([]byte, error) {
-	var report map[string]interface{}
+	var report map[string]any
 	if err := json.Unmarshal(reportJSON, &report); err != nil {
 		return nil, fmt.Errorf("parsing report JSON: %w", err)
 	}

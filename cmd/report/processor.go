@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -84,7 +85,7 @@ func forward(endpoint EndpointConfig, reportJSON []byte) error {
 			return fmt.Errorf("transforming to PuppetDB format: %w", err)
 		}
 		// PuppetDB command endpoint
-		url = endpoint.URL + "/pdb/cmd/v1"
+		url = strings.TrimRight(endpoint.URL, "/") + "/pdb/cmd/v1"
 	default:
 		// Generic: forward as-is
 		body = reportJSON

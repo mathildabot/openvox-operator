@@ -41,15 +41,15 @@ func main() {
 	}
 
 	// Forward report to all configured endpoints
-	var errors []error
+	var errs []error
 	for _, endpoint := range cfg.Endpoints {
 		if err := forward(endpoint, reportJSON); err != nil {
-			errors = append(errors, fmt.Errorf("endpoint %s: %w", endpoint.Name, err))
+			errs = append(errs, fmt.Errorf("endpoint %s: %w", endpoint.Name, err))
 		}
 	}
 
-	if len(errors) > 0 {
-		for _, err := range errors {
+	if len(errs) > 0 {
+		for _, err := range errs {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		}
 		os.Exit(2)
