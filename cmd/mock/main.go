@@ -4,7 +4,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -25,8 +24,8 @@ type storedPDBCommand struct {
 }
 
 type storedClassification struct {
-	Certname   string    `json:"certname"`
-	ServedAt   time.Time `json:"served_at"`
+	Certname string    `json:"certname"`
+	ServedAt time.Time `json:"served_at"`
 }
 
 type server struct {
@@ -85,14 +84,14 @@ func (s *server) handleENC(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/x-yaml")
-	fmt.Fprintf(w, "---\n")
+	_, _ = w.Write([]byte("---\n"))
 	if s.encEnvironment != "" {
-		fmt.Fprintf(w, "environment: %s\n", s.encEnvironment)
+		_, _ = w.Write([]byte("environment: " + s.encEnvironment + "\n"))
 	}
 	if len(s.encClasses) > 0 {
-		fmt.Fprintf(w, "classes:\n")
+		_, _ = w.Write([]byte("classes:\n"))
 		for _, c := range s.encClasses {
-			fmt.Fprintf(w, "  %s:\n", c)
+			_, _ = w.Write([]byte("  " + c + ":\n"))
 		}
 	}
 }
@@ -113,7 +112,7 @@ func (s *server) handleReport(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "ok")
+	_, _ = w.Write([]byte("ok"))
 }
 
 func (s *server) handlePDBCommand(w http.ResponseWriter, r *http.Request) {
@@ -133,31 +132,35 @@ func (s *server) handlePDBCommand(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"uuid":"mock-uuid"}`)
+	_, _ = w.Write([]byte(`{"uuid":"mock-uuid"}`))
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (s *server) handleAPIReports(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.reports)
+	writeJSON(w, s.reports)
 }
 
 func (s *server) handleAPIPDBCommands(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.pdbCommands)
+	writeJSON(w, s.pdbCommands)
 }
 
 func (s *server) handleAPIClassifications(w http.ResponseWriter, _ *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.classifications)
+	writeJSON(w, s.classifications)
 }
 
 func (s *server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "ok")
+	_, _ = w.Write([]byte("ok"))
 }
