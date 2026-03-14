@@ -107,6 +107,41 @@ spec:
     imagePullSecret: registry-credentials
 ```
 
+### Rollout Visibility
+
+Because the code image reference is part of the pod spec, Kubernetes tracks rollout progress natively. You can see at a glance whether all pods have picked up the new code version:
+
+```bash
+kubectl rollout status deployment -l openvox.voxpupuli.org/server -n production
+```
+
+Each pod shows the exact code image it is running. There is no ambiguity about whether r10k has finished syncing or whether a server is still serving stale code — the image tag **is** the version.
+
+### Developer Isolation
+
+In a traditional Puppet setup, multiple developers sharing a single server means constant restarts and conflicting code changes. With the operator, each developer (or feature branch) can run a fully independent stack in its own namespace:
+
+```bash
+# Developer A works on a new module
+helm upgrade --install dev-alice charts/openvox-stack \
+  --namespace dev-alice --create-namespace \
+  --set config.code.image=ghcr.io/example/puppet-code:feature-alice
+
+# Developer B tests a Hiera refactor
+helm upgrade --install dev-bob charts/openvox-stack \
+  --namespace dev-bob --create-namespace \
+  --set config.code.image=ghcr.io/example/puppet-code:feature-bob
+```
+
+Each stack has its own CA, certificates, and server pods. Developers can iterate independently — deploying new code, running agents, and testing without affecting anyone else. Tearing down is equally simple:
+
+```bash
+helm uninstall dev-alice --namespace dev-alice
+kubectl delete namespace dev-alice
+```
+
+This pattern works well in CI too: spin up an ephemeral stack per pull request, run agents against it, and tear it down after the tests pass.
+
 ### Per-Server Override
 
 A Server can override the Config's code source. This is useful for testing new code on a canary server:
