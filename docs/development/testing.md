@@ -35,10 +35,40 @@ In CI, envtest is set up automatically.
 
 E2E tests use [Chainsaw](https://kyverno.github.io/chainsaw/) to deploy the operator and OpenVox stack scenarios against a real Kubernetes cluster and verify the full resource lifecycle.
 
+### Container Images
+
+E2E tests require 5 container images: `openvox-operator`, `openvox-server`, `openvox-code`, `openvox-agent`, and `openvox-mock`. All images are pulled from ghcr.io at runtime — there is no local image building or loading into the cluster.
+
+This avoids several issues with local-only workflows:
+
+- Docker Desktop Kubernetes cannot use `kind load docker-image`
+- kind clusters on non-Docker runtimes (Podman, colima) have unreliable image loading
+- Docker Hub rate limits can break builds that pull base images
+
+Images are pushed to `ghcr.io/slauger/<image>` with a short SHA tag (e.g. `efac063`) and `:latest`.
+
+#### Building Images via CI
+
+Trigger the **E2E** workflow to build and push all 5 images for the current branch:
+
+```bash
+gh workflow run e2e.yaml
+```
+
+This runs `_container-build.yaml` for each image (multi-arch, hadolint, push to ghcr.io). On `main`, the regular CI workflows (`ci.yaml`, `ci-test-images.yaml`) build the same images automatically.
+
+#### Building Images Locally
+
+For local development without CI, use `make local-build` to build all 5 images with your local container tool (Docker/Podman). To use them with a local cluster (e.g. Docker Desktop Kubernetes), deploy via `make local-deploy` which sets `pullPolicy: Never`:
+
+```bash
+make local-deploy
+```
+
 ### Prerequisites
 
 - A running Kubernetes cluster (Docker Desktop, kind, k3s, etc.)
-- Container images buildable locally (Docker or Podman)
+- Container images available in ghcr.io (run the E2E workflow first, or `make local-build` + push)
 
 ### Running
 
@@ -48,9 +78,8 @@ make e2e
 
 This will:
 
-1. Build all container images (`openvox-operator`, `openvox-server`, `openvox-code`, `openvox-agent`, `openvox-mock`)
-2. Deploy the operator via Helm
-3. Run all Chainsaw test scenarios
+1. Deploy the operator via Helm (pulling from ghcr.io)
+2. Run all Chainsaw test scenarios
 
 ### Test Scenarios
 
@@ -149,14 +178,31 @@ Full integration test combining ENC, reports, and PuppetDB:
 
 Each test scenario cleans up after itself (Helm uninstall + namespace deletion) via Chainsaw's `finally` block, even on failure. Scenarios use isolated namespaces so they can run in parallel.
 
-### CI Workflow
+### CI Workflows
 
-Agent E2E tests are available via the **E2E** workflow (`.github/workflows/e2e.yaml`), triggered manually via `workflow_dispatch`. It accepts an optional `image_tag` input:
+Image builds and E2E tests are managed by three workflows:
 
-- **Empty** — builds operator and server from source
-- **Set** (e.g. `latest`, `0a6a7f0`) — pulls pre-built images from `ghcr.io/slauger/openvox-operator` and `ghcr.io/slauger/openvox-server`
+| Workflow | Trigger | What it does |
+|----------|---------|-------------|
+| `e2e.yaml` | `workflow_dispatch` | Builds all 5 images and pushes to ghcr.io |
+| `ci-test-images.yaml` | Push to `main` (path filter) | Builds agent, code, mock on main |
+| `cleanup.yaml` | `workflow_dispatch` | Deletes E2E image versions (short SHA tags) |
 
-Test images (code, agent, mock) are always built from source. Their container image builds are managed separately in `.github/workflows/container-build-test.yaml` (push to main with path filter + manual trigger).
+The typical workflow for validating a feature branch before merging:
+
+```bash
+# 1. Build all images for the current branch
+gh workflow run e2e.yaml
+
+# 2. Check build status
+gh run list --workflow=e2e.yaml --limit=1
+
+# 3. Run E2E tests locally against a cluster that can pull from ghcr.io
+make e2e
+
+# 4. Clean up E2E images after merging
+gh workflow run cleanup.yaml -f dry_run=false
+```
 
 ### Writing New Tests
 
