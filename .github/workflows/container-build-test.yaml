@@ -12,7 +12,7 @@ on:
 
 jobs:
   openvox-agent:
-    uses: ./.github/workflows/container-build.yaml
+    uses: ./.github/workflows/_container-build.yaml
     permissions:
       contents: read
       packages: write
@@ -22,7 +22,7 @@ jobs:
       context: 'images/openvox-agent'
 
   openvox-code:
-    uses: ./.github/workflows/container-build.yaml
+    uses: ./.github/workflows/_container-build.yaml
     permissions:
       contents: read
       packages: write
@@ -32,7 +32,7 @@ jobs:
       context: '.'
 
   openvox-mock:
-    uses: ./.github/workflows/container-build.yaml
+    uses: ./.github/workflows/_container-build.yaml
     permissions:
       contents: read
       packages: write

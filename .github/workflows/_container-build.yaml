@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: 'linux/amd64,linux/arm64'
+      push:
+        description: 'Push images regardless of branch'
+        required: false
+        type: boolean
+        default: false
     outputs:
       version:
         description: 'Image version tag'
@@ -102,7 +107,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Login to ghcr.io
-        if: github.ref == 'refs/heads/main'
+        if: inputs.push || github.ref == 'refs/heads/main'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -115,14 +120,14 @@ jobs:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
           platforms: ${{ matrix.platform }}
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: ${{ inputs.push || github.ref == 'refs/heads/main' }}
           provenance: false
           tags: ghcr.io/${{ github.repository_owner }}/${{ inputs.image_name }}:${{ needs.prepare.outputs.version }}-${{ steps.platform.outputs.suffix }}
           cache-from: type=gha,scope=${{ inputs.image_name }}-${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ inputs.image_name }}-${{ matrix.platform }}
 
   manifest:
-    if: github.ref == 'refs/heads/main'
+    if: inputs.push || github.ref == 'refs/heads/main'
     needs: [prepare, build]
     runs-on: ubuntu-latest
     outputs:
@@ -153,7 +158,7 @@ jobs:
           docker manifest create ${IMAGE}:${VERSION} ${IMAGES}
           docker manifest push ${IMAGE}:${VERSION}
 
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          if [[ "${{ inputs.push }}" == "true" ]] || [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             docker manifest create ${IMAGE}:latest ${IMAGES}
             docker manifest push ${IMAGE}:latest
           fi
