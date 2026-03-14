@@ -110,6 +110,7 @@ All resources use the API group `openvox.voxpupuli.org/v1alpha1`.
 | **`CertificateAuthority`** | CA infrastructure: keys, signing, split Secrets (cert, key, CRL) | PVC, Job, ServiceAccount, Role, RoleBinding, 3 Secrets |
 | **`SigningPolicy`** | Declarative CSR signing policy (any, pattern, DNS SANs, CSR attributes) | *(rendered into Config's autosign Secret)* |
 | **`NodeClassifier`** | External Node Classifier (ENC) endpoint (Foreman, PE, custom HTTP) | *(rendered into Config's ENC Secret)* |
+| **`ReportProcessor`** | Report forwarding endpoint (generic webhook or PuppetDB Wire Format v8) | *(rendered into Config's report-webhook Secret)* |
 | **`Certificate`** | Lifecycle of a single certificate (request, sign) | TLS Secret |
 | **`Server`** | OpenVox Server instance pool (CA and/or server role), declares pool membership via `poolRefs` | Deployment |
 | **`Pool`** | Networking resource: Service + optional Gateway API TLSRoute for Servers that reference this Pool | Service, TLSRoute (optional) |
