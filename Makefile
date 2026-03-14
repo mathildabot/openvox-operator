@@ -156,8 +156,17 @@ ci: lint vet test check-manifests vulncheck helm-lint ## Run all CI checks local
 
 ##@ E2E
 
+E2E_REGISTRY ?= ghcr.io/slauger
+
 .PHONY: e2e
-e2e: local-deploy ## Run E2E tests against the current cluster.
+e2e: ## Run E2E tests against the current cluster (images must exist in registry).
+	helm upgrade --install openvox-operator charts/openvox-operator \
+		--namespace $(NAMESPACE) --create-namespace \
+		--set image.repository=$(E2E_REGISTRY)/openvox-operator \
+		--set image.tag=$(LOCAL_TAG) \
+		--set image.pullPolicy=Always
+	kubectl wait --for=condition=Available deployment/openvox-operator \
+		-n $(NAMESPACE) --timeout=2m
 	$(CHAINSAW) test tests/e2e/
 
 ##@ Help

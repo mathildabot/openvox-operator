@@ -4,74 +4,33 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Image tag for operator and server (e.g. "latest", "0a6a7f0"). Leave empty to build from source.'
-        required: false
+        description: 'Image tag (e.g. "7aab21d"). Must exist in ghcr.io (run "E2E Images" first).'
+        required: true
         type: string
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
-      - name: Create kind cluster
-        uses: helm/kind-action@v1
+      - uses: helm/kind-action@v1
         with:
           config: tests/e2e/kind-config.yaml
-
-      - name: Pull operator and server from registry
-        if: inputs.image_tag != ''
-        run: |
-          docker pull ghcr.io/slauger/openvox-operator:${{ inputs.image_tag }}
-          docker tag ghcr.io/slauger/openvox-operator:${{ inputs.image_tag }} openvox-operator:${{ inputs.image_tag }}
-          docker pull ghcr.io/slauger/openvox-server:${{ inputs.image_tag }}
-          docker tag ghcr.io/slauger/openvox-server:${{ inputs.image_tag }} openvox-server:${{ inputs.image_tag }}
-
-      - name: Build operator and server from source
-        if: inputs.image_tag == ''
-        run: |
-          LOCAL_TAG=$(git describe --always)
-          docker build -t openvox-operator:${LOCAL_TAG} -f images/openvox-operator/Containerfile .
-          docker build -t openvox-server:${LOCAL_TAG} -f images/openvox-server/Containerfile .
-
-      - name: Build test images from source
-        run: |
-          docker build -t openvox-code:latest -f images/openvox-code/Containerfile .
-          docker build -t openvox-agent:latest -f images/openvox-agent/Containerfile images/openvox-agent/
-          docker build -t openvox-mock:latest -f images/openvox-mock/Containerfile .
-
-      - name: Determine image tag
-        id: tag
-        run: |
-          if [ -n "${{ inputs.image_tag }}" ]; then
-            echo "tag=${{ inputs.image_tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=$(git describe --always)" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Load images into kind
-        run: |
-          kind load docker-image openvox-operator:${{ steps.tag.outputs.tag }}
-          kind load docker-image openvox-server:${{ steps.tag.outputs.tag }}
-          kind load docker-image openvox-code:latest
-          kind load docker-image openvox-agent:latest
-          kind load docker-image openvox-mock:latest
 
       - name: Install operator
         run: |
           helm upgrade --install openvox-operator charts/openvox-operator \
             --namespace openvox-system --create-namespace \
-            --set image.repository=openvox-operator \
-            --set image.tag=${{ steps.tag.outputs.tag }} \
-            --set image.pullPolicy=Never
+            --set image.repository=ghcr.io/slauger/openvox-operator \
+            --set image.tag=${{ inputs.image_tag }} \
+            --set image.pullPolicy=Always
           kubectl wait --for=condition=Available deployment/openvox-operator \
             -n openvox-system --timeout=2m
 

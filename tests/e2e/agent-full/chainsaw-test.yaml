@@ -26,8 +26,8 @@ spec:
                   spec:
                     containers:
                       - name: mock
-                        image: openvox-mock:latest
-                        imagePullPolicy: Never
+                        image: ghcr.io/slauger/openvox-mock:latest
+                        imagePullPolicy: Always
                         ports:
                           - containerPort: 8080
                         env:
@@ -67,9 +67,9 @@ spec:
               helm upgrade --install e2e-agent-full "${REPO_ROOT}/charts/openvox-stack" \
                 --namespace e2e-agent-full --create-namespace \
                 --values "${REPO_ROOT}/charts/openvox-stack/ci/agent-full-values.yaml" \
-                --set config.image.repository=openvox-server \
+                --set config.image.repository=ghcr.io/slauger/openvox-server \
                 --set config.image.tag="${LOCAL_TAG}" \
-                --set config.image.pullPolicy=Never
+                --set config.image.pullPolicy=Always
       catch:
         - events: {}
 
@@ -102,8 +102,8 @@ spec:
                     restartPolicy: Never
                     containers:
                       - name: puppet-agent
-                        image: openvox-agent:latest
-                        imagePullPolicy: Never
+                        image: ghcr.io/slauger/openvox-agent:latest
+                        imagePullPolicy: Always
                         command: ["sh", "-c"]
                         args:
                           - |

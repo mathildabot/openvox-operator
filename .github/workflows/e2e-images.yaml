@@ -1,0 +1,59 @@
+name: E2E Images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  openvox-operator:
+    uses: ./.github/workflows/container-build-e2e.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: openvox-operator
+      dockerfile: images/openvox-operator/Containerfile
+      context: '.'
+
+  openvox-server:
+    uses: ./.github/workflows/container-build-e2e.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: openvox-server
+      dockerfile: images/openvox-server/Containerfile
+      context: '.'
+
+  openvox-code:
+    uses: ./.github/workflows/container-build-e2e.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: openvox-code
+      dockerfile: images/openvox-code/Containerfile
+      context: '.'
+
+  openvox-agent:
+    uses: ./.github/workflows/container-build-e2e.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: openvox-agent
+      dockerfile: images/openvox-agent/Containerfile
+      context: 'images/openvox-agent'
+
+  openvox-mock:
+    uses: ./.github/workflows/container-build-e2e.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      image_name: openvox-mock
+      dockerfile: images/openvox-mock/Containerfile
+      context: '.'

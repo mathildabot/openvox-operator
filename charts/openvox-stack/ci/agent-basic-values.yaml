@@ -4,8 +4,8 @@ signingPolicies:
 
 config:
   code:
-    image: openvox-code:latest
-    imagePullPolicy: Never
+    image: ghcr.io/slauger/openvox-code:latest
+    imagePullPolicy: Always
 
 servers:
   - name: ca
