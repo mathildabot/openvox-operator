@@ -7,7 +7,7 @@ Defaults to the Release name, overridable via fullnameOverride.
 {{- end }}
 
 {{/*
-Config name — defaults to fullname.
+Config name -- defaults to fullname.
 */}}
 {{- define "openvox-stack.configName" -}}
 {{- .Values.config.name | default (include "openvox-stack.fullname" .) }}
@@ -48,7 +48,7 @@ NodeClassifier name.
 {{- end }}
 
 {{/*
-Server name for a server entry — prefixed with fullname.
+Server name for a server entry -- prefixed with fullname.
 Usage: include "openvox-stack.serverName" (dict "root" $ "entry" $entry)
 */}}
 {{- define "openvox-stack.serverName" -}}
@@ -64,6 +64,18 @@ Usage: include "openvox-stack.certName" (dict "root" $ "entry" $entry)
 {{- .entry.certificate.name }}
 {{- else -}}
 {{- printf "%s-%s" (include "openvox-stack.fullname" .root) .entry.name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{/*
+ReportProcessor name for array entries.
+Usage: include "openvox-stack.reportProcessorName" (dict "root" $ "entry" $entry "index" $i)
+*/}}
+{{- define "openvox-stack.reportProcessorName" -}}
+{{- if .entry.name -}}
+{{- .entry.name }}
+{{- else -}}
+{{- printf "%s-report-processor-%d" (include "openvox-stack.fullname" .root) .index | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 

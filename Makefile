@@ -1,5 +1,8 @@
 IMG ?= ghcr.io/slauger/openvox-operator:latest
 OPENVOX_SERVER_IMG ?= ghcr.io/slauger/openvox-server:latest
+OPENVOX_CODE_IMG ?= ghcr.io/slauger/openvox-code:latest
+OPENVOX_AGENT_IMG ?= ghcr.io/slauger/openvox-agent:latest
+OPENVOX_MOCK_IMG ?= ghcr.io/slauger/openvox-mock:latest
 NAMESPACE ?= openvox-system
 CONTAINER_TOOL ?= $(shell which podman 2>/dev/null || which docker 2>/dev/null)
 CONTROLLER_GEN = go tool controller-gen
@@ -58,8 +61,14 @@ LOCAL_TAG ?= $(shell git describe --always)
 local-build: ## Build all images for local development (Docker Desktop K8s).
 	$(CONTAINER_TOOL) build -t openvox-operator:$(LOCAL_TAG) -f images/openvox-operator/Containerfile .
 	$(CONTAINER_TOOL) build -t openvox-server:$(LOCAL_TAG) -f images/openvox-server/Containerfile .
+	$(CONTAINER_TOOL) build -t openvox-code:latest -f images/openvox-code/Containerfile .
+	$(CONTAINER_TOOL) build -t openvox-agent:latest -f images/openvox-agent/Containerfile images/openvox-agent/
+	$(CONTAINER_TOOL) build -t openvox-mock:latest -f images/openvox-mock/Containerfile .
 	@echo "Built openvox-operator:$(LOCAL_TAG)"
 	@echo "Built openvox-server:$(LOCAL_TAG)"
+	@echo "Built openvox-code:latest"
+	@echo "Built openvox-agent:latest"
+	@echo "Built openvox-mock:latest"
 
 .PHONY: local-deploy
 local-deploy: local-build local-install ## Build images and deploy operator via Helm.
@@ -147,8 +156,17 @@ ci: lint vet test check-manifests vulncheck helm-lint ## Run all CI checks local
 
 ##@ E2E
 
+E2E_REGISTRY ?= ghcr.io/slauger
+
 .PHONY: e2e
-e2e: local-deploy ## Run E2E tests against the current cluster.
+e2e: ## Run E2E tests against the current cluster (images must exist in registry).
+	helm upgrade --install openvox-operator charts/openvox-operator \
+		--namespace $(NAMESPACE) --create-namespace \
+		--set image.repository=$(E2E_REGISTRY)/openvox-operator \
+		--set image.tag=$(LOCAL_TAG) \
+		--set image.pullPolicy=Always
+	kubectl wait --for=condition=Available deployment/openvox-operator \
+		-n $(NAMESPACE) --timeout=2m
 	$(CHAINSAW) test tests/e2e/
 
 ##@ Help
