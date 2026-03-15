@@ -282,7 +282,7 @@ func (r *ServerReconciler) buildHPA(server *openvoxv1alpha1.Server) (*autoscalin
 			Namespace: server.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "openvox-operator",
-				LabelServer:                   server.Name,
+				LabelServer:                    server.Name,
 			},
 		},
 		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{

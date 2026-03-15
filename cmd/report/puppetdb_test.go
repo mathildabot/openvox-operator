@@ -8,23 +8,23 @@ import (
 // sampleReport returns a to_data_hash report for testing.
 func sampleReport() map[string]any {
 	return map[string]any{
-		"host":                   "testnode.example.com",
-		"time":                   "2024-01-15T10:30:00.000000000Z",
-		"configuration_version":  "1705312200",
-		"transaction_uuid":       "abc-123",
-		"report_format":          float64(10),
-		"puppet_version":         "8.4.0",
-		"status":                 "changed",
-		"transaction_completed":  true,
-		"noop":                   false,
-		"noop_pending":           false,
-		"environment":            "production",
-		"corrective_change":      false,
-		"catalog_uuid":           "cat-456",
-		"code_id":                "code-789",
-		"job_id":                 "job-012",
-		"cached_catalog_status":  "not_used",
-		"server_used":            "puppet.example.com",
+		"host":                  "testnode.example.com",
+		"time":                  "2024-01-15T10:30:00.000000000Z",
+		"configuration_version": "1705312200",
+		"transaction_uuid":      "abc-123",
+		"report_format":         float64(10),
+		"puppet_version":        "8.4.0",
+		"status":                "changed",
+		"transaction_completed": true,
+		"noop":                  false,
+		"noop_pending":          false,
+		"environment":           "production",
+		"corrective_change":     false,
+		"catalog_uuid":          "cat-456",
+		"code_id":               "code-789",
+		"job_id":                "job-012",
+		"cached_catalog_status": "not_used",
+		"server_used":           "puppet.example.com",
 		"resource_statuses": map[string]any{
 			"Notify[hello]": map[string]any{
 				"title":             "hello",
@@ -52,16 +52,16 @@ func sampleReport() map[string]any {
 		},
 		"metrics": map[string]any{
 			"time": map[string]any{
-				"name":   "time",
-				"label":  "Time",
+				"name":  "time",
+				"label": "Time",
 				"values": []any{
 					[]any{"total", "Total", float64(5.5)},
 					[]any{"notify", "Notify", float64(0.001)},
 				},
 			},
 			"resources": map[string]any{
-				"name":   "resources",
-				"label":  "Resources",
+				"name":  "resources",
+				"label": "Resources",
 				"values": []any{
 					[]any{"total", "Total", float64(1)},
 					[]any{"changed", "Changed", float64(1)},

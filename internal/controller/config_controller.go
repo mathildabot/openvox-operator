@@ -1224,7 +1224,6 @@ func (r *ConfigReconciler) renderAutosignPolicyConfig(ctx context.Context, names
 	return sb.String(), nil
 }
 
-
 // updateSigningPolicyStatus sets the phase and condition on a SigningPolicy.
 func (r *ConfigReconciler) updateSigningPolicyStatus(ctx context.Context, sp *openvoxv1alpha1.SigningPolicy, err error) {
 	if err != nil {
