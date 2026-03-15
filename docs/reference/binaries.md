@@ -1,6 +1,6 @@
 # Helper Binaries
 
-The operator image ships three helper binaries that are mounted into Server pods and called by Puppet at runtime. They are not intended to be run manually — the operator generates their configuration as Kubernetes Secrets from the corresponding CRDs.
+The operator image ships three helper binaries that are mounted into Server pods and called by Puppet at runtime. They are not intended to be run manually. The operator generates their configuration as Kubernetes Secrets from the corresponding CRDs.
 
 ## openvox-autosign
 
@@ -32,7 +32,7 @@ The CSR is read from stdin as PEM-encoded data.
 - `any: true` signs unconditionally
 - `pattern` matches certnames using glob patterns (`*`, `?`)
 - `csrAttributes` matches Puppet CSR extension OIDs (e.g. `pp_role`, `pp_environment`, `pp_preshared_key`)
-- `dnsAltNames` validates DNS SANs in the CSR — if a CSR contains SANs, they must be explicitly allowed
+- `dnsAltNames` validates DNS SANs in the CSR - if a CSR contains SANs, they must be explicitly allowed
 
 **Supported CSR attributes:**
 
@@ -64,7 +64,7 @@ openvox-enc [--config <path>] <certname>
 
 - Supports `GET` and `POST` methods
 - POST body types: `certname` (sends `{"certname": "..."}`) or `facts` (sends certname + cached Puppet facts)
-- Response formats: `yaml` (default) and `json` — both are normalized to Puppet ENC YAML on stdout
+- Response formats: `yaml` (default) and `json` - both are normalized to Puppet ENC YAML on stdout
 - Authentication: `mtls`, `bearer`, `basic`, `token`
 - TLS: custom CA certificate for server verification, mTLS with client certificate
 - Cache: when enabled, caches successful classifications to disk and falls back to cache on network errors

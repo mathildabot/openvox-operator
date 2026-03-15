@@ -14,7 +14,7 @@
 | `GET` | `/api/classifications` | List all served classifications (JSON) |
 | `GET` | `/healthz` | Health check |
 
-The `/api/*` endpoints are useful for assertions in E2E tests — they return all data the mock has received or served during its lifetime.
+The `/api/*` endpoints are useful for assertions in E2E tests. They return all data the mock has received or served during its lifetime.
 
 ## Environment Variables
 
