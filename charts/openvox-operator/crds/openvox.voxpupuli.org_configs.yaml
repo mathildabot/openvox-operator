@@ -20,6 +20,9 @@ spec:
     - jsonPath: .spec.authorityRef
       name: CA
       type: string
+    - jsonPath: .spec.image.tag
+      name: Image
+      type: string
     - jsonPath: .status.phase
       name: Phase
       type: string
