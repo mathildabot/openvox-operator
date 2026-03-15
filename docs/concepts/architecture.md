@@ -101,7 +101,7 @@ The operator itself runs with its own ServiceAccount (managed by the Helm chart)
 
 ## Pod Volumes
 
-Server pods use `readOnlyRootFilesystem: true` for security hardening. All writable paths are explicit emptyDir mounts; all configuration comes from ConfigMaps and Secrets. This section documents every volume mounted into Server and CA pods.
+Server pods can optionally use `readOnlyRootFilesystem: true` for security hardening. This is controlled by the `.spec.readOnlyRootFilesystem` field in the Config CRD (default: `false`). When enabled, all writable paths are backed by emptyDir volumes and `server-var-dir` is redirected to `/run/puppetserver`. All configuration comes from ConfigMaps and Secrets. This section documents every volume mounted into Server and CA pods.
 
 ### Server Pod Volumes
 
