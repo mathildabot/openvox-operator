@@ -9,6 +9,7 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=cfg
 // +kubebuilder:printcolumn:name="CA",type=string,JSONPath=`.spec.authorityRef`
+// +kubebuilder:printcolumn:name="Image",type=string,JSONPath=`.spec.image.tag`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 

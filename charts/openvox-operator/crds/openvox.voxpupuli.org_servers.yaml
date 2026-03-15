@@ -18,6 +18,9 @@ spec:
     - jsonPath: .spec.configRef
       name: Config
       type: string
+    - jsonPath: .spec.ca
+      name: CA
+      type: boolean
     - jsonPath: .spec.replicas
       name: Replicas
       type: integer
