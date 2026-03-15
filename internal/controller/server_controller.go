@@ -75,7 +75,7 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, types.NamespacedName{Name: server.Spec.ConfigRef, Namespace: server.Namespace}, cfg); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("waiting for Config", "configRef", server.Spec.ConfigRef)
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -85,7 +85,7 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, types.NamespacedName{Name: server.Spec.CertificateRef, Namespace: server.Namespace}, cert); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("waiting for Certificate", "certificateRef", server.Spec.CertificateRef)
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -104,7 +104,7 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if err := r.Get(ctx, types.NamespacedName{Name: cert.Spec.AuthorityRef, Namespace: server.Namespace}, ca); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("waiting for CertificateAuthority", "authorityRef", cert.Spec.AuthorityRef)
-			return ctrl.Result{}, nil
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -155,7 +155,10 @@ func (r *ServerReconciler) reconcilePDB(ctx context.Context, server *openvoxv1al
 		return nil
 	}
 
-	desired := r.buildPDB(server)
+	desired, buildErr := r.buildPDB(server)
+	if buildErr != nil {
+		return buildErr
+	}
 	if errors.IsNotFound(err) {
 		logger.Info("creating PDB", "name", pdbName)
 		if err := r.Create(ctx, desired); err != nil {
@@ -177,7 +180,7 @@ func (r *ServerReconciler) reconcilePDB(ctx context.Context, server *openvoxv1al
 	return nil
 }
 
-func (r *ServerReconciler) buildPDB(server *openvoxv1alpha1.Server) *policyv1.PodDisruptionBudget {
+func (r *ServerReconciler) buildPDB(server *openvoxv1alpha1.Server) (*policyv1.PodDisruptionBudget, error) {
 	pdb := &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      server.Name,
@@ -204,8 +207,10 @@ func (r *ServerReconciler) buildPDB(server *openvoxv1alpha1.Server) *policyv1.Po
 		minAvailable := intstrInt(1)
 		pdb.Spec.MinAvailable = &minAvailable
 	}
-	_ = controllerutil.SetControllerReference(server, pdb, r.Scheme)
-	return pdb
+	if err := controllerutil.SetControllerReference(server, pdb, r.Scheme); err != nil {
+		return nil, fmt.Errorf("setting controller reference on PDB: %w", err)
+	}
+	return pdb, nil
 }
 
 func (r *ServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
