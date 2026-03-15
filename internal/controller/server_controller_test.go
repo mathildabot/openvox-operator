@@ -42,7 +42,7 @@ func TestServerReconcile_NotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if res.Requeue || res.RequeueAfter != 0 {
+	if res.RequeueAfter != 0 {
 		t.Error("expected no requeue for missing Server")
 	}
 }

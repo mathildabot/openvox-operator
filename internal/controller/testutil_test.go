@@ -3,11 +3,8 @@ package controller
 import (
 	"context"
 
-	appsv1 "k8s.io/api/apps/v1"
-	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
-	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -180,18 +177,6 @@ func newServer(name string, opts ...serverOption) *openvoxv1alpha1.Server {
 	return s
 }
 
-func withConfigRef(ref string) serverOption {
-	return func(s *openvoxv1alpha1.Server) {
-		s.Spec.ConfigRef = ref
-	}
-}
-
-func withCertificateRef(ref string) serverOption {
-	return func(s *openvoxv1alpha1.Server) {
-		s.Spec.CertificateRef = ref
-	}
-}
-
 func withCA(ca bool) serverOption {
 	return func(s *openvoxv1alpha1.Server) {
 		s.Spec.CA = ca
@@ -228,24 +213,6 @@ func withPDBEnabled(enabled bool) serverOption {
 func withAutoscaling(enabled bool) serverOption {
 	return func(s *openvoxv1alpha1.Server) {
 		s.Spec.Autoscaling = openvoxv1alpha1.AutoscalingSpec{Enabled: enabled}
-	}
-}
-
-func withJavaArgs(args string) serverOption {
-	return func(s *openvoxv1alpha1.Server) {
-		s.Spec.JavaArgs = args
-	}
-}
-
-func withResources(res corev1.ResourceRequirements) serverOption {
-	return func(s *openvoxv1alpha1.Server) {
-		s.Spec.Resources = res
-	}
-}
-
-func withServerCodeImage(image string) serverOption {
-	return func(s *openvoxv1alpha1.Server) {
-		s.Spec.Code = &openvoxv1alpha1.CodeSpec{Image: image}
 	}
 }
 
@@ -447,25 +414,3 @@ func newPoolReconciler(c client.Client, gatewayAPI bool) *PoolReconciler {
 	}
 }
 
-// --- Fake deployment helper for status tests ---
-
-func newDeployment(name string, readyReplicas int32) *appsv1.Deployment {
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: testNamespace,
-		},
-		Status: appsv1.DeploymentStatus{
-			ReadyReplicas: readyReplicas,
-		},
-	}
-}
-
-// Unused import guards -- ensures the test scheme includes all necessary API groups.
-var (
-	_ = &appsv1.Deployment{}
-	_ = &autoscalingv2.HorizontalPodAutoscaler{}
-	_ = &policyv1.PodDisruptionBudget{}
-	_ = &discoveryv1.EndpointSlice{}
-	_ = &gwapiv1.TLSRoute{}
-)
