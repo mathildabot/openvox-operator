@@ -67,8 +67,10 @@ nav:
   - Development:
       - Local Setup: development/local-setup.md
       - Testing: development/testing.md
+      - Mock Server: development/mock-server.md
   - Reference:
       - Overview: reference/index.md
+      - Helper Binaries: reference/binaries.md
       - Config: reference/config.md
       - CertificateAuthority: reference/certificateauthority.md
       - SigningPolicy: reference/signingpolicy.md
