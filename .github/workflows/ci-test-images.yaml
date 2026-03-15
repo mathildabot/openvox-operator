@@ -1,4 +1,4 @@
-name: Container Build (Test Images)
+name: CI (Test Images)
 
 on:
   push:
