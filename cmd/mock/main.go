@@ -42,7 +42,7 @@ type authConfig struct {
 	authType     string
 	authToken    string
 	authHeader   string
-	authUsername  string
+	authUsername string
 	authPassword string
 }
 
@@ -81,7 +81,7 @@ func main() {
 			authType:     os.Getenv("AUTH_TYPE"),
 			authToken:    os.Getenv("AUTH_TOKEN"),
 			authHeader:   os.Getenv("AUTH_HEADER"),
-			authUsername:  os.Getenv("AUTH_USERNAME"),
+			authUsername: os.Getenv("AUTH_USERNAME"),
 			authPassword: os.Getenv("AUTH_PASSWORD"),
 		},
 	}

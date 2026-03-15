@@ -38,8 +38,8 @@ type CertificateAuthorityReconciler struct {
 
 // Event reasons for CertificateAuthority.
 const (
-	EventReasonCAInitialized  = "CAInitialized"
-	EventReasonCRLRefreshed   = "CRLRefreshed"
+	EventReasonCAInitialized    = "CAInitialized"
+	EventReasonCRLRefreshed     = "CRLRefreshed"
 	EventReasonCRLRefreshFailed = "CRLRefreshFailed"
 )
 

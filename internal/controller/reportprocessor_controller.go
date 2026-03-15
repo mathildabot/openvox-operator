@@ -294,7 +294,6 @@ func (r *ReportProcessorReconciler) renderReportWebhookConfig(ctx context.Contex
 	return string(out), nil
 }
 
-
 // resolveConfigMapKey reads a specific key from a ConfigMap.
 func (r *ReportProcessorReconciler) resolveConfigMapKey(ctx context.Context, namespace, cmName, key string) (string, error) {
 	cm := &corev1.ConfigMap{}
