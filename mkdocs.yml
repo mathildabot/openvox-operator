@@ -59,6 +59,8 @@ nav:
       - Gateway API: concepts/gateway-api.md
       - External Node Classification: concepts/external-node-classification.md
       - Report Processing: concepts/report-processing.md
+      - Configuration Rollout: concepts/config-rollout.md
+      - Certificate Signing: concepts/certificate-signing.md
   - Getting Started:
       - Installation: getting-started/installation.md
       - Quick Start: getting-started/quickstart.md
@@ -67,8 +69,10 @@ nav:
   - Development:
       - Local Setup: development/local-setup.md
       - Testing: development/testing.md
+      - Mock Server: development/mock-server.md
   - Reference:
       - Overview: reference/index.md
+      - Helper Binaries: reference/binaries.md
       - Config: reference/config.md
       - CertificateAuthority: reference/certificateauthority.md
       - SigningPolicy: reference/signingpolicy.md

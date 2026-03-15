@@ -34,7 +34,7 @@ spec:
 | `autoscaling` | [AutoscalingSpec](#autoscalingspec) | - | HPA configuration |
 | `resources` | ResourceRequirements | - | CPU/memory requests and limits |
 | `javaArgs` | string | `-Xms512m -Xmx1024m` | JVM arguments |
-| `maxActiveInstances` | int32 | `2` | Number of JRuby instances per pod |
+| `maxActiveInstances` | int32 | `1` | Number of JRuby instances per pod |
 | `code` | [CodeSpec](index.md#codespec) | - | Override the Config's code volume |
 | `topologySpreadConstraints` | []TopologySpreadConstraint | - | Pod spread constraints across topology domains |
 | `affinity` | Affinity | - | Pod affinity/anti-affinity rules |
