@@ -461,7 +461,7 @@ func newDeployment(name string, readyReplicas int32) *appsv1.Deployment {
 	}
 }
 
-// Unused import guards – ensures the test scheme includes all necessary API groups.
+// Unused import guards -- ensures the test scheme includes all necessary API groups.
 var (
 	_ = &appsv1.Deployment{}
 	_ = &autoscalingv2.HorizontalPodAutoscaler{}
