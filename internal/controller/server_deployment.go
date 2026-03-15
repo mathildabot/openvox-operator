@@ -33,7 +33,7 @@ func (r *ServerReconciler) reconcileDeployment(ctx context.Context, server *open
 	// library resolves -D system properties as overrides.
 	maxActive := server.Spec.MaxActiveInstances
 	if maxActive <= 0 {
-		maxActive = 2
+		maxActive = 1
 	}
 	javaArgs = fmt.Sprintf("%s -Djruby-puppet.max-active-instances=%d", javaArgs, maxActive)
 
