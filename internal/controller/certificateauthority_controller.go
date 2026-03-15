@@ -605,9 +605,12 @@ func (r *CertificateAuthorityReconciler) buildCASetupJob(ctx context.Context, ca
 								{Name: "ca-data", MountPath: "/etc/puppetlabs/puppetserver/ca"},
 								{Name: "ssl", MountPath: "/etc/puppetlabs/puppet/ssl"},
 								{Name: "puppet-conf", MountPath: "/etc/puppetlabs/puppet/puppet.conf", SubPath: "puppet.conf", ReadOnly: true},
+								{Name: "tmp", MountPath: "/tmp"},
+								{Name: "puppetserver-data", MountPath: "/opt/puppetlabs/server/data/puppetserver"},
 							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: boolPtr(false),
+								ReadOnlyRootFilesystem:   boolPtr(true),
 								Capabilities: &corev1.Capabilities{
 									Drop: []corev1.Capability{"ALL"},
 								},
@@ -624,6 +627,8 @@ func (r *CertificateAuthorityReconciler) buildCASetupJob(ctx context.Context, ca
 							},
 						},
 						{Name: "ssl", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+						{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+						{Name: "puppetserver-data", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 						{
 							Name: "puppet-conf",
 							VolumeSource: corev1.VolumeSource{
