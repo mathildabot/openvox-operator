@@ -13,7 +13,8 @@ graph TD
     Cfg["Config"]
     CA["CertificateAuthority"]
     SP["SigningPolicy"]
-    NC["NodeClassifier"]
+    NC["NodeClassifier\n(optional)"]
+    RP["ReportProcessor\n(optional)"]
     Cert["Certificate"]
     Srv["Server"]
     Pool["Pool"]
@@ -23,13 +24,15 @@ graph TD
     CA -->|authorityRef| Cert
     Cert -->|certificateRef| Srv
     Cfg -->|configRef| Srv
+    Cfg -->|configRef| RP
     Srv -->|poolRefs| Pool
 ```
 
 - A **Config** is the root resource. It generates ConfigMaps for puppet.conf/puppetdb.conf/webserver.conf and holds shared configuration.
 - A **CertificateAuthority** is a standalone resource managing the CA infrastructure: PVC, setup Job, and CA Secret. A Config references it via `authorityRef`.
 - A **SigningPolicy** references a CertificateAuthority and defines declarative CSR signing rules (any, pattern match, or CSR attribute match). The Config controller renders all SigningPolicies into an autosign policy file.
-- A **NodeClassifier** is a standalone resource defining an External Node Classifier endpoint. A Config references it via `nodeClassifierRef`. The Config controller renders the classifier configuration into an ENC Secret, and puppet.conf gets `node_terminus = exec`. See [External Node Classification](external-node-classification.md).
+- A **NodeClassifier** is an optional standalone resource defining an External Node Classifier endpoint. A Config references it via `nodeClassifierRef`. The Config controller renders the classifier configuration into an ENC Secret, and puppet.conf gets `node_terminus = exec`. See [External Node Classification](external-node-classification.md).
+- A **ReportProcessor** is an optional standalone resource that defines an external endpoint for Puppet run reports. One or more ReportProcessors can reference the same Config via `configRef`. The Config controller collects all matching ReportProcessors, renders a `report-webhook.yaml` config, and sets `reports = webhook` in puppet.conf. A minimal Ruby shim (`webhook.rb`) pipes each report as JSON to the `openvox-report` binary, which forwards it to all configured endpoints. Supports built-in PuppetDB wire format v8 (`processor: puppetdb`) and generic HTTP webhooks with configurable auth (mTLS, Bearer, Basic, custom headers). See [Report Processing](report-processing.md).
 - A **Certificate** references a CertificateAuthority and manages the lifecycle of a single certificate: signing Job and TLS Secret.
 - A **Server** references a Config and a Certificate. It creates a Deployment (with Recreate strategy for CA, RollingUpdate for servers). The Server waits for the Certificate to reach the `Signed` phase before creating its Deployment. A Server declares pool membership via `poolRefs`.
 - A **Pool** is a pure networking resource that creates a Kubernetes Service. Servers join a Pool by listing its name in their `poolRefs`.
