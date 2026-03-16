@@ -59,16 +59,16 @@ LOCAL_TAG ?= $(shell git describe --always)
 
 .PHONY: local-build
 local-build: ## Build all images for local development (Docker Desktop K8s).
-	$(CONTAINER_TOOL) build -t openvox-operator:$(LOCAL_TAG) -f images/openvox-operator/Containerfile .
-	$(CONTAINER_TOOL) build -t openvox-server:$(LOCAL_TAG) -f images/openvox-server/Containerfile .
-	$(CONTAINER_TOOL) build -t openvox-code:latest -f images/openvox-code/Containerfile .
-	$(CONTAINER_TOOL) build -t openvox-agent:latest -f images/openvox-agent/Containerfile images/openvox-agent/
-	$(CONTAINER_TOOL) build -t openvox-mock:latest -f images/openvox-mock/Containerfile .
-	@echo "Built openvox-operator:$(LOCAL_TAG)"
-	@echo "Built openvox-server:$(LOCAL_TAG)"
-	@echo "Built openvox-code:latest"
-	@echo "Built openvox-agent:latest"
-	@echo "Built openvox-mock:latest"
+	$(CONTAINER_TOOL) build -t ghcr.io/slauger/openvox-operator:$(LOCAL_TAG) -f images/openvox-operator/Containerfile .
+	$(CONTAINER_TOOL) build -t ghcr.io/slauger/openvox-server:$(LOCAL_TAG) -f images/openvox-server/Containerfile .
+	$(CONTAINER_TOOL) build -t ghcr.io/slauger/openvox-code:latest -f images/openvox-code/Containerfile .
+	$(CONTAINER_TOOL) build -t ghcr.io/slauger/openvox-agent:latest -f images/openvox-agent/Containerfile images/openvox-agent/
+	$(CONTAINER_TOOL) build -t ghcr.io/slauger/openvox-mock:latest -f images/openvox-mock/Containerfile .
+	@echo "Built ghcr.io/slauger/openvox-operator:$(LOCAL_TAG)"
+	@echo "Built ghcr.io/slauger/openvox-server:$(LOCAL_TAG)"
+	@echo "Built ghcr.io/slauger/openvox-code:latest"
+	@echo "Built ghcr.io/slauger/openvox-agent:latest"
+	@echo "Built ghcr.io/slauger/openvox-mock:latest"
 
 .PHONY: local-deploy
 local-deploy: local-build local-install ## Build images and deploy operator via Helm.
@@ -86,7 +86,7 @@ install: manifests ## Install operator via Helm with default images.
 		--namespace $(NAMESPACE) --create-namespace $(HELM_SET)
 
 .PHONY: local-install
-local-install: HELM_SET := --set image.repository=openvox-operator --set image.tag=$(LOCAL_TAG) --set image.pullPolicy=Never
+local-install: HELM_SET := --set image.tag=$(LOCAL_TAG) --set image.pullPolicy=Never
 local-install: install ## Install operator via Helm with local images (no build).
 
 .PHONY: stack
@@ -96,7 +96,7 @@ stack: ## Deploy openvox-stack via Helm with default images.
 		--values $(STACK_VALUES) $(STACK_HELM_SET)
 
 .PHONY: local-stack
-local-stack: STACK_HELM_SET := --set config.image.repository=openvox-server --set config.image.tag=$(LOCAL_TAG) --set config.image.pullPolicy=Never
+local-stack: STACK_HELM_SET := --set config.image.tag=$(LOCAL_TAG) --set config.image.pullPolicy=Never
 local-stack: stack ## Deploy openvox-stack via Helm with local images.
 
 .PHONY: unstack
