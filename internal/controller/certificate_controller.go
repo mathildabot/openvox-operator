@@ -135,7 +135,7 @@ func (r *CertificateReconciler) reconcileCertSigning(ctx context.Context, cert *
 
 	result, err := r.signCertificate(ctx, cert, ca, caServiceName, cert.Namespace)
 	if err != nil {
-		logger.Info("certificate signing failed, will retry", "error", err)
+		logger.Error(err, "certificate signing failed, will retry")
 		cert.Status.Phase = openvoxv1alpha1.CertificatePhaseError
 		meta.SetStatusCondition(&cert.Status.Conditions, metav1.Condition{
 			Type:               openvoxv1alpha1.ConditionCertSigned,
@@ -211,8 +211,11 @@ func (r *CertificateReconciler) adoptTLSSecret(ctx context.Context, cert *openvo
 func (r *CertificateReconciler) extractNotAfter(ctx context.Context, secretName, namespace string) *metav1.Time {
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+		if !errors.IsNotFound(err) {
+			log.FromContext(ctx).Error(err, "failed to get TLS Secret", "name", secretName, "namespace", namespace)
+		}
 		return nil
 	}
-	return parseCertNotAfter(secret.Data["cert.pem"])
+	return parseCertNotAfter(ctx, secret.Data["cert.pem"])
 }
 

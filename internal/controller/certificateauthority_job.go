@@ -39,9 +39,12 @@ func (r *CertificateAuthorityReconciler) findCertificatesForCA(ctx context.Conte
 // findCAServerCert finds the Certificate belonging to the Server with ca:true.
 // This is the cert that should be signed during CA setup.
 func (r *CertificateAuthorityReconciler) findCAServerCert(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority, certs []openvoxv1alpha1.Certificate) *openvoxv1alpha1.Certificate {
+	logger := log.FromContext(ctx)
+
 	// Build set of Config names referencing this CA
 	cfgList := &openvoxv1alpha1.ConfigList{}
 	if err := r.List(ctx, cfgList, client.InNamespace(ca.Namespace)); err != nil {
+		logger.Error(err, "failed to list Configs for CA server cert discovery", "namespace", ca.Namespace)
 		return nil
 	}
 	configNames := map[string]bool{}
@@ -53,6 +56,7 @@ func (r *CertificateAuthorityReconciler) findCAServerCert(ctx context.Context, c
 
 	serverList := &openvoxv1alpha1.ServerList{}
 	if err := r.List(ctx, serverList, client.InNamespace(ca.Namespace)); err != nil {
+		logger.Error(err, "failed to list Servers for CA server cert discovery", "namespace", ca.Namespace)
 		return nil
 	}
 
