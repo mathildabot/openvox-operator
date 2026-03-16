@@ -19,12 +19,12 @@ graph TD
     Srv["Server"]
     Pool["Pool"]
     Cfg -->|authorityRef| CA
-    Cfg -->|nodeClassifierRef| NC
-    SP -->|certificateAuthorityRef| CA
+    Cfg -.->|nodeClassifierRef| NC
+    SP -.->|certificateAuthorityRef| CA
     Cert -->|authorityRef| CA
     Srv -->|certificateRef| Cert
     Srv -->|configRef| Cfg
-    RP -->|configRef| Cfg
+    RP -.->|configRef| Cfg
     Srv -->|poolRefs| Pool
 ```
 
