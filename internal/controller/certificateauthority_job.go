@@ -270,17 +270,18 @@ fi
 
 NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
 TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 API="https://kubernetes.default.svc/api/v1/namespaces/${NAMESPACE}/secrets"
 
 create_or_update_secret() {
   local SECRET_NAME="$1"
   local PAYLOAD="$2"
-  HTTP_CODE=$(curl -sk -o /tmp/api-response -w '%{http_code}' -X PUT \
+  HTTP_CODE=$(curl -s --cacert "$CACERT" -o /tmp/api-response -w '%{http_code}' -X PUT \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     "${API}/${SECRET_NAME}" -d "$PAYLOAD")
   if [ "$HTTP_CODE" = "404" ]; then
-    HTTP_CODE=$(curl -sk -o /tmp/api-response -w '%{http_code}' -X POST \
+    HTTP_CODE=$(curl -s --cacert "$CACERT" -o /tmp/api-response -w '%{http_code}' -X POST \
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json" \
       "${API}" -d "$PAYLOAD")
