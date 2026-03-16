@@ -20,11 +20,11 @@ graph TD
     Pool["Pool"]
     Cfg -->|authorityRef| CA
     Cfg -->|nodeClassifierRef| NC
-    CA -->|certificateAuthorityRef| SP
-    CA -->|authorityRef| Cert
-    Cert -->|certificateRef| Srv
-    Cfg -->|configRef| Srv
-    Cfg -->|configRef| RP
+    SP -->|certificateAuthorityRef| CA
+    Cert -->|authorityRef| CA
+    Srv -->|certificateRef| Cert
+    Srv -->|configRef| Cfg
+    RP -->|configRef| Cfg
     Srv -->|poolRefs| Pool
 ```
 
