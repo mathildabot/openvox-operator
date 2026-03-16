@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	openvoxv1alpha1 "github.com/slauger/openvox-operator/api/v1alpha1"
 )
@@ -81,9 +82,12 @@ func hashStringMap(data map[string]string) string {
 // 3. Finding a Pool referenced by the CA server's poolRefs
 // 4. Returning the first matching Pool name as service name
 func findCAServiceName(ctx context.Context, reader client.Reader, ca *openvoxv1alpha1.CertificateAuthority, namespace string) string {
+	logger := log.FromContext(ctx)
+
 	// Build set of Config names referencing this CA
 	cfgList := &openvoxv1alpha1.ConfigList{}
 	if err := reader.List(ctx, cfgList, client.InNamespace(namespace)); err != nil {
+		logger.Error(err, "failed to list Configs for CA service discovery", "namespace", namespace)
 		return ""
 	}
 	configNames := map[string]bool{}
@@ -95,6 +99,7 @@ func findCAServiceName(ctx context.Context, reader client.Reader, ca *openvoxv1a
 
 	serverList := &openvoxv1alpha1.ServerList{}
 	if err := reader.List(ctx, serverList, client.InNamespace(namespace)); err != nil {
+		logger.Error(err, "failed to list Servers for CA service discovery", "namespace", namespace)
 		return ""
 	}
 
@@ -114,13 +119,17 @@ func findCAServiceName(ctx context.Context, reader client.Reader, ca *openvoxv1a
 }
 
 // parseCertNotAfter extracts the NotAfter time from a PEM-encoded certificate.
-func parseCertNotAfter(certPEM []byte) *metav1.Time {
+func parseCertNotAfter(ctx context.Context, certPEM []byte) *metav1.Time {
+	logger := log.FromContext(ctx)
+
 	block, _ := pem.Decode(certPEM)
 	if block == nil || block.Type != "CERTIFICATE" {
+		logger.Error(fmt.Errorf("expected PEM block type CERTIFICATE"), "failed to decode certificate PEM")
 		return nil
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
+		logger.Error(err, "failed to parse X.509 certificate")
 		return nil
 	}
 	t := metav1.NewTime(cert.NotAfter.UTC().Truncate(time.Second))
@@ -131,6 +140,9 @@ func parseCertNotAfter(certPEM []byte) *metav1.Time {
 func isSecretReady(ctx context.Context, reader client.Reader, name, namespace, requiredKey string) bool {
 	secret := &corev1.Secret{}
 	if err := reader.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, secret); err != nil {
+		if !errors.IsNotFound(err) {
+			log.FromContext(ctx).Error(err, "failed to get Secret", "name", name, "namespace", namespace)
+		}
 		return false
 	}
 	if requiredKey != "" {

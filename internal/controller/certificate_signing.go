@@ -125,7 +125,10 @@ func (r *CertificateReconciler) submitCSR(ctx context.Context, cert *openvoxv1al
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, HTTPBodyLimit))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, HTTPBodyLimit))
+	if err != nil {
+		logger.Error(err, "failed to read CSR response body")
+	}
 	if resp.StatusCode == http.StatusOK {
 		logger.Info("CSR submitted successfully", "certname", certname)
 	} else if resp.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "already has a requested certificate") {
@@ -160,7 +163,10 @@ func (r *CertificateReconciler) fetchSignedCert(ctx context.Context, cert *openv
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, HTTPBodyLimit))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, HTTPBodyLimit))
+	if err != nil {
+		log.FromContext(ctx).Error(err, "failed to read certificate response body")
+	}
 
 	if resp.StatusCode == http.StatusOK && len(body) > 0 {
 		block, _ := pem.Decode(body)

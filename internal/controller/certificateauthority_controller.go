@@ -133,6 +133,7 @@ func (r *CertificateAuthorityReconciler) Reconcile(ctx context.Context, req ctrl
 func (r *CertificateAuthorityReconciler) findConfigForCA(ctx context.Context, ca *openvoxv1alpha1.CertificateAuthority) *openvoxv1alpha1.Config {
 	cfgList := &openvoxv1alpha1.ConfigList{}
 	if err := r.List(ctx, cfgList, client.InNamespace(ca.Namespace)); err != nil {
+		log.FromContext(ctx).Error(err, "failed to list Configs", "namespace", ca.Namespace)
 		return nil
 	}
 	for i := range cfgList.Items {
@@ -178,7 +179,10 @@ func (r *CertificateAuthorityReconciler) SetupWithManager(mgr ctrl.Manager) erro
 func (r *CertificateAuthorityReconciler) extractCANotAfter(ctx context.Context, secretName, namespace string) *metav1.Time {
 	secret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+		if !errors.IsNotFound(err) {
+			log.FromContext(ctx).Error(err, "failed to get CA Secret", "name", secretName, "namespace", namespace)
+		}
 		return nil
 	}
-	return parseCertNotAfter(secret.Data["ca_crt.pem"])
+	return parseCertNotAfter(ctx, secret.Data["ca_crt.pem"])
 }
